@@ -40,3 +40,18 @@
 .read-the-docs {
   color: #888;
 }
+
+input, select {
+  background-color: #ffffff; /* 白背景 */
+  color: #000000;           /* 黒文字 */
+  border: 1px solid #ccc;   /* 薄いグレーの枠線 */
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 16px;
+}
+
+input:focus, select:focus {
+  outline: none;
+  border-color: #007bff; /* フォーカス時に青枠 */
+  box-shadow: 0 0 4px rgba(0, 123, 255, 0.4);
+}

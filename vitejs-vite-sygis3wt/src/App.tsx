@@ -34,14 +34,14 @@ const BASE_EXS: Exercise[] = [
     name: 'チェストプレス',
     defaultWeight: 41,
     defaultReps: 10,
-    defaultSets: 2,
+    defaultSets: 3,
   },
   {
     key: 'row',
     name: 'シーテッドロー',
     defaultWeight: 45,
     defaultReps: 10,
-    defaultSets: 2,
+    defaultSets: 3,
   },
   {
     key: 'lat',
@@ -699,4 +699,5 @@ export default function App() {
     </div>
   );
 }
+
 

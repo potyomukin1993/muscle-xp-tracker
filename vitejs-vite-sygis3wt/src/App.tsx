@@ -32,7 +32,7 @@ const BASE_EXS: Exercise[] = [
   {
     key: 'chest',
     name: 'チェストプレス',
-    defaultWeight: 41,
+    defaultWeight: 45,
     defaultReps: 10,
     defaultSets: 3,
   },
@@ -46,7 +46,7 @@ const BASE_EXS: Exercise[] = [
   {
     key: 'lat',
     name: 'ラットプルダウン',
-    defaultWeight: 45,
+    defaultWeight: 52,
     defaultReps: 10,
     defaultSets: 2,
   },
@@ -60,9 +60,9 @@ const BASE_EXS: Exercise[] = [
   {
     key: 'crun',
     name: 'アブドミナルクランチ',
-    defaultWeight: 50,
+    defaultWeight: 54,
     defaultReps: 15,
-    defaultSets: 2,
+    defaultSets: 3,
   },
   {
     key: 'curl',

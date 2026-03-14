@@ -395,7 +395,7 @@ export default function App() {
 
   const hardReset = () => {
     if (!confirm("全データをリセットしますか？")) return;
-    setTotalXP(35234);
+    setTotalXP(493928);
     setNotes([]);
     setTodayDate(new Date().toISOString().slice(0, 10));
     setExercises(createInitialExercises());

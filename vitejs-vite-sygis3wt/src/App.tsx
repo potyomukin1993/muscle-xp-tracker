@@ -152,7 +152,7 @@ function resetDoneOnly(exercises: ExerciseTemplate[]) {
 }
 
 export default function App() {
-  const [totalXP, setTotalXP] = useState<number>(35234);
+  const [totalXP, setTotalXP] = useState<number>(493928);
   const [notes, setNotes] = useState<Note[]>([]);
   const [todayDate, setTodayDate] = useState<string>(
     new Date().toISOString().slice(0, 10)

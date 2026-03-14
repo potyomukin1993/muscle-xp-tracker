@@ -81,9 +81,9 @@ function createInitialExercises(): ExerciseTemplate[] {
       name: "チェストプレス",
       isBase: true,
       sets: [
-        { weight: 45, reps: 10, done: false },
-        { weight: 45, reps: 10, done: false },
-        { weight: 45, reps: 10, done: false },
+        { weight: 50, reps: 10, done: false },
+        { weight: 50, reps: 10, done: false },
+        { weight: 50, reps: 10, done: false },
       ],
     },
     {
@@ -91,9 +91,9 @@ function createInitialExercises(): ExerciseTemplate[] {
       name: "シーテッドロー",
       isBase: true,
       sets: [
-        { weight: 45, reps: 10, done: false },
-        { weight: 45, reps: 10, done: false },
-        { weight: 45, reps: 10, done: false },
+        { weight: 52, reps: 10, done: false },
+        { weight: 52, reps: 10, done: false },
+        { weight: 52, reps: 10, done: false },
       ],
     },
     {
@@ -101,8 +101,8 @@ function createInitialExercises(): ExerciseTemplate[] {
       name: "ラットプルダウン",
       isBase: true,
       sets: [
-        { weight: 52, reps: 10, done: false },
-        { weight: 52, reps: 10, done: false },
+        { weight: 59, reps: 10, done: false },
+        { weight: 59, reps: 10, done: false },
       ],
     },
     {
@@ -119,8 +119,8 @@ function createInitialExercises(): ExerciseTemplate[] {
       name: "アブドミナルクランチ",
       isBase: true,
       sets: [
-        { weight: 54, reps: 15, done: false },
-        { weight: 54, reps: 15, done: false },
+        { weight: 59, reps: 15, done: false },
+        { weight: 59, reps: 15, done: false },
       ],
     },
     {
@@ -128,8 +128,8 @@ function createInitialExercises(): ExerciseTemplate[] {
       name: "アームカール",
       isBase: true,
       sets: [
-        { weight: 32, reps: 10, done: false },
-        { weight: 32, reps: 10, done: false },
+        { weight: 36, reps: 10, done: false },
+        { weight: 36, reps: 10, done: false },
       ],
     },
     {

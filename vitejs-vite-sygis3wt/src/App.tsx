@@ -1,133 +1,37 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from "react";
 
 /** ========= Types ========= */
-type Exercise = {
-  key: string;
-  name: string;
-  defaultWeight: number;
-  defaultReps: number;
-  defaultSets: number;
-};
-type TodayItem = Exercise & {
+type SetEntry = {
   weight: number;
   reps: number;
-  sets: number;
   done: boolean;
 };
-type ExtraItem = {
+
+type ExerciseTemplate = {
   key: string;
   name: string;
-  weight: number;
-  reps: number;
-  sets: number;
-  done: boolean;
+  isBase: boolean;
+  sets: SetEntry[];
 };
-type Note = { date: string; xp: number; memo: string };
+
+type Note = {
+  date: string;
+  xp: number;
+  memo: string;
+};
+
+type SavedState = {
+  totalXP: number;
+  notes: Note[];
+  todayDate: string;
+  exercises: ExerciseTemplate[];
+  runMeters: number;
+};
 
 /** ========= Constants ========= */
-const LS_KEY = 'xp_tracker_full_v3'; // バージョンアップ時はキーも更新
+const LS_KEY = "xp_tracker_full_v4";
 
-// 基本メニュー（あなたの標準設定）
-const BASE_EXS: Exercise[] = [
-  {
-    key: 'chest',
-    name: 'チェストプレス',
-    defaultWeight: 45,
-    defaultReps: 10,
-    defaultSets: 3,
-  },
-  {
-    key: 'row',
-    name: 'シーテッドロー',
-    defaultWeight: 45,
-    defaultReps: 10,
-    defaultSets: 3,
-  },
-  {
-    key: 'lat',
-    name: 'ラットプルダウン',
-    defaultWeight: 52,
-    defaultReps: 10,
-    defaultSets: 2,
-  },
-  {
-    key: 'leg',
-    name: 'レッグプレス',
-    defaultWeight: 86,
-    defaultReps: 10,
-    defaultSets: 2,
-  },
-  {
-    key: 'crun',
-    name: 'アブドミナルクランチ',
-    defaultWeight: 54,
-    defaultReps: 15,
-    defaultSets: 3,
-  },
-  {
-    key: 'curl',
-    name: 'アームカール',
-    defaultWeight: 32,
-    defaultReps: 10,
-    defaultSets: 2,
-  },
-];
-
-// ユーモア称号（Lv1〜）
-const TITLES = [
-  '筋トレ見習い',
-  '初級プロテイン飲み',
-  '追い込みビギナー',
-  'セット職人',
-  '高重量の志願者',
-  'ルーティン守護者',
-  '意識高い系マッスル',
-  'ジムの住人',
-  '上腕二頭筋の語り部',
-  '筋肉痛の虜',
-  '部位分割の伝達者',
-  '追い込みの求道者',
-  'インクラインの探究者',
-  'フォーム警察',
-  '筋肥大の探求者',
-  'ストリクトの賢者',
-  'ボディメイクの革命児',
-  '減量期の鬼',
-  '管理人',
-  '増量期の化身',
-  '高タンパクの伝道師',
-  '魔術師',
-  '錬金術師',
-  'ホエイ界の審査員',
-  '筋肉の哲学者',
-  'フォーム錬成の達人',
-  '爆伸びの旅人',
-  'パンプの召喚士',
-  'ドロップセットの覇者',
-  'スーパーセットの舞姫',
-  '可動域の吟遊詩人',
-  '効かせの吟味者',
-  'セット間の賢者',
-  '筋線維の支配者',
-  '高密度ボディの錬成者',
-  'マシン支配の覇者',
-  '鍛錬の求道者',
-  'レップの魔術師',
-  '筋肉構築の建築士',
-  '重量との対話者',
-  '限界突破の戦士',
-  '鉄と汗の預言者',
-  'ウェイトの賢者',
-  'トレーニングの巨人',
-  '肉体改造の伝説',
-  '筋力の守護者',
-  '鍛錬界の革命児',
-  '成長記録の伝道師',
-  'セット回数の覇王',
-  '筋帝王',
-];
-
-// Lv1→2必要XP=2000、以降1.18倍（Lv50想定）
+// 2年でLv50想定カーブ
 function buildLevelNeeds(start = 1200, growth = 1.11, levels = 50) {
   const arr: number[] = [];
   let need = start;
@@ -138,206 +42,350 @@ function buildLevelNeeds(start = 1200, growth = 1.11, levels = 50) {
   return arr;
 }
 const LEVEL_NEEDS = buildLevelNeeds();
+
+const TITLES = [
+  "筋トレ見習い","初級プロテイン飲み","追い込みビギナー","セット職人","高重量の志願者",
+  "ルーティン守護者","意識高い系マッスル","ジムの住人","上腕二頭筋の語り部","筋肉痛の虜",
+  "部位分割の伝達者","追い込みの求道者","インクラインの探究者","フォーム警察","筋肥大の探求者",
+  "ストリクトの賢者","ボディメイクの革命児","減量期の鬼","管理人","増量期の化身",
+  "高タンパクの伝道師","魔術師","錬金術師","ホエイ界の審査員","筋肉の哲学者",
+  "フォーム錬成の達人","爆伸びの旅人","パンプの召喚士","ドロップセットの覇者","スーパーセットの舞姫",
+  "可動域の吟遊詩人","効かせの吟味者","セット間の賢者","筋線維の支配者","高密度ボディの錬成者",
+  "マシン支配の覇者","鍛錬の求道者","レップの魔術師","筋肉構築の建築士","重量との対話者",
+  "限界突破の戦士","鉄と汗の預言者","ウェイトの賢者","トレーニングの巨人","肉体改造の伝説",
+  "筋力の守護者","鍛錬界の革命児","成長記録の伝道師","セット回数の覇王","筋帝王"
+];
+
 const pretty = (n: number) => n.toLocaleString();
 
 function computeLevel(totalXP: number) {
-  let lvl = 1,
-    rest = totalXP;
+  let lvl = 1;
+  let rest = totalXP;
   for (let i = 0; i < LEVEL_NEEDS.length; i++) {
     const need = LEVEL_NEEDS[i];
-    if (rest >= need) (rest -= need), lvl++;
-    else return { level: lvl, into: rest, toNext: need };
+    if (rest >= need) {
+      rest -= need;
+      lvl++;
+    } else {
+      return { level: lvl, into: rest, toNext: need };
+    }
   }
   return { level: LEVEL_NEEDS.length + 1, into: 0, toNext: 0 };
 }
 
-/** ========= App ========= */
-export default function App() {
-  const [totalXP, setTotalXP] = useState<number>(0);
-  const [notes, setNotes] = useState<Note[]>([]);
-  const [today, setToday] = useState(() => ({
-    date: new Date().toISOString().slice(0, 10),
-    items: BASE_EXS.map<TodayItem>((e) => ({
-      ...e,
-      weight: e.defaultWeight,
-      reps: e.defaultReps,
-      sets: e.defaultSets,
-      done: false,
-    })),
-    extras: [] as ExtraItem[],
-    runMeters: 0,
-    legExt: { weight: 73, reps: 10, sets: 2, done: false }, // 標準73kg希望
-  }));
+// 初期テンプレート
+function createInitialExercises(): ExerciseTemplate[] {
+  return [
+    {
+      key: "chest",
+      name: "チェストプレス",
+      isBase: true,
+      sets: [
+        { weight: 45, reps: 10, done: false },
+        { weight: 45, reps: 10, done: false },
+        { weight: 45, reps: 10, done: false },
+      ],
+    },
+    {
+      key: "row",
+      name: "シーテッドロー",
+      isBase: true,
+      sets: [
+        { weight: 45, reps: 10, done: false },
+        { weight: 45, reps: 10, done: false },
+        { weight: 45, reps: 10, done: false },
+      ],
+    },
+    {
+      key: "lat",
+      name: "ラットプルダウン",
+      isBase: true,
+      sets: [
+        { weight: 52, reps: 10, done: false },
+        { weight: 52, reps: 10, done: false },
+      ],
+    },
+    {
+      key: "legpress",
+      name: "レッグプレス",
+      isBase: true,
+      sets: [
+        { weight: 93, reps: 10, done: false },
+        { weight: 93, reps: 10, done: false },
+      ],
+    },
+    {
+      key: "crunch",
+      name: "アブドミナルクランチ",
+      isBase: true,
+      sets: [
+        { weight: 54, reps: 15, done: false },
+        { weight: 54, reps: 15, done: false },
+      ],
+    },
+    {
+      key: "curl",
+      name: "アームカール",
+      isBase: true,
+      sets: [
+        { weight: 32, reps: 10, done: false },
+        { weight: 32, reps: 10, done: false },
+      ],
+    },
+    {
+      key: "legext",
+      name: "レッグエクステンション",
+      isBase: false,
+      sets: [
+        { weight: 73, reps: 10, done: false },
+        { weight: 73, reps: 10, done: false },
+      ],
+    },
+  ];
+}
 
-  // 初期ロード
+function resetDoneOnly(exercises: ExerciseTemplate[]) {
+  return exercises.map((ex) => ({
+    ...ex,
+    sets: ex.sets.map((s) => ({ ...s, done: false })),
+  }));
+}
+
+export default function App() {
+  const [totalXP, setTotalXP] = useState<number>(35234);
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [todayDate, setTodayDate] = useState<string>(
+    new Date().toISOString().slice(0, 10)
+  );
+  const [exercises, setExercises] = useState<ExerciseTemplate[]>(createInitialExercises());
+  const [runMeters, setRunMeters] = useState<number>(0);
+
+  // load
   useEffect(() => {
     const saved = localStorage.getItem(LS_KEY);
-    if (saved) {
-      try {
-        const obj = JSON.parse(saved);
-        if (typeof obj.totalXP === 'number') setTotalXP(obj.totalXP);
-        if (Array.isArray(obj.notes)) setNotes(obj.notes);
-        if (obj.today) setToday(obj.today);
-      } catch {
-        // noop
-      }
+    if (!saved) return;
+    try {
+      const parsed: SavedState = JSON.parse(saved);
+      if (typeof parsed.totalXP === "number") setTotalXP(parsed.totalXP);
+      if (Array.isArray(parsed.notes)) setNotes(parsed.notes);
+      if (typeof parsed.todayDate === "string") setTodayDate(parsed.todayDate);
+      if (Array.isArray(parsed.exercises)) setExercises(parsed.exercises);
+      if (typeof parsed.runMeters === "number") setRunMeters(parsed.runMeters);
+    } catch {
+      // noop
     }
   }, []);
 
-  // 保存
+  // save
   useEffect(() => {
-    localStorage.setItem(LS_KEY, JSON.stringify({ totalXP, notes, today }));
-  }, [totalXP, notes, today]);
+    const payload: SavedState = {
+      totalXP,
+      notes,
+      todayDate,
+      exercises,
+      runMeters,
+    };
+    localStorage.setItem(LS_KEY, JSON.stringify(payload));
+  }, [totalXP, notes, todayDate, exercises, runMeters]);
 
-  /** ---- 集計ロジック ---- */
   const calc = useMemo(() => {
-    const baseSum = today.items
-      .filter((i) => i.done)
-      .reduce((s, i) => s + i.weight * i.reps * i.sets, 0);
-    const extrasSum = today.extras
-      .filter((i) => i.done)
-      .reduce((s, i) => s + i.weight * i.reps * i.sets, 0);
-    const legExtXP = today.legExt.done
-      ? today.legExt.weight * today.legExt.reps * today.legExt.sets
-      : 0;
-    const runXP = Number(today.runMeters) || 0; // ラン: 距離(m)=XP
+    const baseExercises = exercises.filter((e) => e.isBase);
+    const extraExercises = exercises.filter((e) => !e.isBase);
 
-    const missing = Math.max(
-      0,
-      BASE_EXS.length - today.items.filter((i) => i.done).length
+    const baseSum = baseExercises.reduce(
+      (sum, ex) =>
+        sum +
+        ex.sets
+          .filter((s) => s.done)
+          .reduce((sub, s) => sub + s.weight * s.reps, 0),
+      0
     );
-    const added =
-      today.extras.filter((i) => i.done).length +
-      (today.legExt.done ? 1 : 0) +
-      (runXP > 0 ? 1 : 0);
 
-    let mult = 1.0 - 0.1 * missing + 0.1 * added;
-    mult = Math.max(0.5, Math.min(1.5, mult)); // 0.5〜1.5にクリップ
+    const extraSum = extraExercises.reduce(
+      (sum, ex) =>
+        sum +
+        ex.sets
+          .filter((s) => s.done)
+          .reduce((sub, s) => sub + s.weight * s.reps, 0),
+      0
+    );
 
-    const raw = baseSum + extrasSum + legExtXP + runXP;
+    const baseCompletedCount = baseExercises.filter((ex) =>
+      ex.sets.some((s) => s.done)
+    ).length;
+
+    const missing = Math.max(0, baseExercises.length - baseCompletedCount);
+
+    const extraDoneCount =
+      extraExercises.filter((ex) => ex.sets.some((s) => s.done)).length +
+      (runMeters > 0 ? 1 : 0);
+
+    let mult = 1.0 - 0.1 * missing + 0.1 * extraDoneCount;
+    mult = Math.max(0.5, Math.min(1.5, mult));
+
+    const raw = baseSum + extraSum + runMeters;
     const finalXP = Math.round(raw * mult);
+
     return {
       baseSum,
-      extrasSum,
-      legExtXP,
-      runXP,
+      extraSum,
+      runXP: runMeters,
       missing,
-      added,
+      extraDoneCount,
       mult,
+      raw,
       finalXP,
     };
-  }, [today]);
+  }, [exercises, runMeters]);
 
   const lv = computeLevel(totalXP);
   const title = TITLES[Math.min(lv.level - 1, TITLES.length - 1)];
-  const progress =
-    lv.toNext === 0 ? 100 : Math.min(100, (lv.into / lv.toNext) * 100);
+  const progress = lv.toNext === 0 ? 100 : Math.min(100, (lv.into / lv.toNext) * 100);
 
-  /** ---- 便利関数 ---- */
-  const toggleItem = (idx: number) =>
-    setToday((p) => ({
-      ...p,
-      items: p.items.map((x, i) => (i === idx ? { ...x, done: !x.done } : x)),
-    }));
+  const updateSetField = (
+    exIdx: number,
+    setIdx: number,
+    field: "weight" | "reps",
+    value: number
+  ) => {
+    setExercises((prev) =>
+      prev.map((ex, i) =>
+        i === exIdx
+          ? {
+              ...ex,
+              sets: ex.sets.map((set, j) =>
+                j === setIdx ? { ...set, [field]: value } : set
+              ),
+            }
+          : ex
+      )
+    );
+  };
 
-  const updateItem = (
-    idx: number,
-    field: 'weight' | 'reps' | 'sets',
-    v: number
-  ) =>
-    setToday((p) => ({
-      ...p,
-      items: p.items.map((x, i) => (i === idx ? { ...x, [field]: v } : x)),
-    }));
+  const toggleSetDone = (exIdx: number, setIdx: number) => {
+    setExercises((prev) =>
+      prev.map((ex, i) =>
+        i === exIdx
+          ? {
+              ...ex,
+              sets: ex.sets.map((set, j) =>
+                j === setIdx ? { ...set, done: !set.done } : set
+              ),
+            }
+          : ex
+      )
+    );
+  };
 
-  const addExtra = () =>
-    setToday((p) => ({
-      ...p,
-      extras: [
-        ...p.extras,
-        {
-          key: `ex_${Date.now()}`,
-          name: '追加種目',
-          weight: 20,
-          reps: 10,
-          sets: 2,
-          done: false,
-        },
-      ],
-    }));
+  const addSet = (exIdx: number) => {
+    setExercises((prev) =>
+      prev.map((ex, i) => {
+        if (i !== exIdx) return ex;
+        const last = ex.sets[ex.sets.length - 1];
+        return {
+          ...ex,
+          sets: [
+            ...ex.sets,
+            {
+              weight: last?.weight ?? 0,
+              reps: last?.reps ?? 10,
+              done: false,
+            },
+          ],
+        };
+      })
+    );
+  };
 
-  const updateExtra = (idx: number, field: keyof ExtraItem, v: any) =>
-    setToday((p) => ({
-      ...p,
-      extras: p.extras.map((x, i) => (i === idx ? { ...x, [field]: v } : x)),
-    }));
+  const removeLastSet = (exIdx: number) => {
+    setExercises((prev) =>
+      prev.map((ex, i) => {
+        if (i !== exIdx) return ex;
+        if (ex.sets.length <= 1) return ex;
+        return {
+          ...ex,
+          sets: ex.sets.slice(0, -1),
+        };
+      })
+    );
+  };
 
-  const resetToday = () =>
-    setToday({
-      date: new Date().toISOString().slice(0, 10),
-      items: BASE_EXS.map<TodayItem>((e) => ({
-        ...e,
-        weight: e.defaultWeight,
-        reps: e.defaultReps,
-        sets: e.defaultSets,
-        done: false,
-      })),
-      extras: [],
-      runMeters: 0,
-      legExt: { weight: 73, reps: 10, sets: 2, done: false },
-    });
+  const addExtraExercise = () => {
+    setExercises((prev) => [
+      ...prev,
+      {
+        key: `extra_${Date.now()}`,
+        name: "追加種目",
+        isBase: false,
+        sets: [{ weight: 20, reps: 10, done: false }],
+      },
+    ]);
+  };
+
+  const updateExerciseName = (exIdx: number, name: string) => {
+    setExercises((prev) =>
+      prev.map((ex, i) => (i === exIdx ? { ...ex, name } : ex))
+    );
+  };
+
+  const resetToday = () => {
+    setExercises((prev) => resetDoneOnly(prev));
+    setRunMeters(0);
+    setTodayDate(new Date().toISOString().slice(0, 10));
+  };
 
   const commitToday = () => {
-    const memo = `倍率${calc.mult.toFixed(2)} / 欠け${calc.missing} / 追加${
-      calc.added
-    } / ラン${pretty(calc.runXP)}XP`;
+    const memo = `倍率${calc.mult.toFixed(2)} / 欠け${calc.missing} / 追加${calc.extraDoneCount} / ラン${pretty(calc.runXP)}XP`;
     setTotalXP((v) => v + calc.finalXP);
-    setNotes((arr) => [{ date: today.date, xp: calc.finalXP, memo }, ...arr]);
-    resetToday();
+    setNotes((arr) => [
+      { date: todayDate, xp: calc.finalXP, memo },
+      ...arr,
+    ]);
+
+    // 前回入力値を維持しつつ、完了だけリセット
+    setExercises((prev) => resetDoneOnly(prev));
+    setRunMeters(0);
+    setTodayDate(new Date().toISOString().slice(0, 10));
   };
 
-  const hardReset = () => {
-    if (
-      !confirm('すべてのデータ（総XP・履歴・今日の入力）をリセットしますか？')
-    )
-      return;
-    setTotalXP(0);
-    setNotes([]);
-    resetToday();
-  };
-
-  // バックアップ（JSONダウンロード）
   const exportJSON = () => {
-    const payload = { totalXP, notes, today };
+    const payload: SavedState = {
+      totalXP,
+      notes,
+      todayDate,
+      exercises,
+      runMeters,
+    };
     const blob = new Blob([JSON.stringify(payload, null, 2)], {
-      type: 'application/json',
+      type: "application/json",
     });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
+    const a = document.createElement("a");
     a.href = url;
-    a.download = `xp-backup-${today.date}.json`;
+    a.download = `xp-backup-${todayDate}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
-  // 復元（JSON読み込み）
   const importJSON = () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'application/json';
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "application/json";
     input.onchange = () => {
       const file = input.files?.[0];
       if (!file) return;
       const reader = new FileReader();
       reader.onload = () => {
         try {
-          const obj = JSON.parse(String(reader.result));
-          if (typeof obj.totalXP === 'number') setTotalXP(obj.totalXP);
+          const obj: SavedState = JSON.parse(String(reader.result));
+          if (typeof obj.totalXP === "number") setTotalXP(obj.totalXP);
           if (Array.isArray(obj.notes)) setNotes(obj.notes);
-          if (obj.today) setToday(obj.today);
-          alert('復元しました！');
+          if (typeof obj.todayDate === "string") setTodayDate(obj.todayDate);
+          if (Array.isArray(obj.exercises)) setExercises(obj.exercises);
+          if (typeof obj.runMeters === "number") setRunMeters(obj.runMeters);
+          alert("復元しました");
         } catch {
-          alert('JSONの形式が不正です。');
+          alert("JSONの形式が不正です");
         }
       };
       reader.readAsText(file);
@@ -345,24 +393,28 @@ export default function App() {
     input.click();
   };
 
-  /** ========= UI ========= */
+  const hardReset = () => {
+    if (!confirm("全データをリセットしますか？")) return;
+    setTotalXP(35234);
+    setNotes([]);
+    setTodayDate(new Date().toISOString().slice(0, 10));
+    setExercises(createInitialExercises());
+    setRunMeters(0);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900 p-4 md:p-8">
-      <div className="max-w-5xl mx-auto space-y-6 pb-24 md:pb-8">
-        {/* Header / Status */}
+      <div className="max-w-6xl mx-auto space-y-6 pb-24 md:pb-8">
+        {/* Header */}
         <div className="rounded-2xl bg-white shadow p-5">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold">
-                筋トレXPトラッカー（フル機能版）
-              </h1>
+              <h1 className="text-2xl md:text-3xl font-bold">筋トレXPトラッカー</h1>
               <div className="mt-2 text-sm">
-                総経験値：
-                <span className="font-semibold">{pretty(totalXP)}</span> XP
+                総経験値：<span className="font-semibold">{pretty(totalXP)}</span> XP
               </div>
-              <div className="mt-2 text-sm">
-                レベル：<span className="font-semibold">Lv {lv.level}</span>「
-                {title}」
+              <div className="mt-1 text-sm">
+                レベル：<span className="font-semibold">Lv {lv.level}</span>「{title}」
               </div>
             </div>
             <div className="w-full md:w-1/2">
@@ -389,13 +441,7 @@ export default function App() {
               onClick={resetToday}
               className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200"
             >
-              今日の入力をリセット
-            </button>
-            <button
-              onClick={hardReset}
-              className="px-4 py-2 rounded-xl bg-red-100 text-red-700 hover:bg-red-200"
-            >
-              全データをリセット
+              今日の完了状態をリセット
             </button>
             <button
               onClick={exportJSON}
@@ -409,231 +455,146 @@ export default function App() {
             >
               復元
             </button>
-
-            {/* 総XPの手動引き継ぎ */}
-            <label className="ml-auto flex items-center gap-2 text-sm">
-              現在の総XPを上書き：
-              <input
-                type="number"
-                className="border rounded-lg px-3 py-2 h-11 text-base w-40"
-                value={totalXP}
-                onChange={(e) => setTotalXP(Number(e.target.value || 0))}
-              />
-            </label>
+            <button
+              onClick={hardReset}
+              className="px-4 py-2 rounded-xl bg-red-100 text-red-700 hover:bg-red-200"
+            >
+              全データをリセット
+            </button>
           </div>
         </div>
 
-        {/* 今日の入力 */}
-        <div className="rounded-2xl bg-white shadow p-5 space-y-3">
+        {/* Today */}
+        <div className="rounded-2xl bg-white shadow p-5 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold">今日のトレーニング</h2>
-            <div className="text-sm opacity-70">日付：{today.date}</div>
-          </div>
-
-          {/* ラベル行（PCのみ表示） */}
-          <div className="hidden md:grid grid-cols-12 gap-2 text-sm font-medium px-1">
-            <div className="col-span-3">種目</div>
-            <div className="col-span-2 text-right">重量(kg)</div>
-            <div className="col-span-2 text-right">回数</div>
-            <div className="col-span-2 text-right">セット</div>
-            <div className="col-span-2 text-right">目安XP</div>
-            <div className="col-span-1 text-center">実施</div>
-          </div>
-
-          {/* 基本6種目 */}
-          {today.items.map((it, i) => (
-            <div
-              key={it.key}
-              className="grid grid-cols-12 md:grid-cols-12 gap-2 items-center rounded-xl md:rounded-none p-3 md:p-0 bg-white md:bg-transparent shadow md:shadow-none"
-            >
-              <label className="col-span-12 md:col-span-3 font-medium flex items-center gap-2 text-base">
-                <input
-                  type="checkbox"
-                  checked={it.done}
-                  onChange={() => toggleItem(i)}
-                />
-                {it.name}
-              </label>
-              <input
-                className="col-span-4 md:col-span-2 border rounded-lg px-3 py-2 h-11 text-base text-right"
-                type="number"
-                value={it.weight}
-                onChange={(e) =>
-                  updateItem(i, 'weight', Number(e.target.value))
-                }
-              />
-              <input
-                className="col-span-4 md:col-span-2 border rounded-lg px-3 py-2 h-11 text-base text-right"
-                type="number"
-                value={it.reps}
-                onChange={(e) => updateItem(i, 'reps', Number(e.target.value))}
-              />
-              <input
-                className="col-span-4 md:col-span-2 border rounded-lg px-3 py-2 h-11 text-base text-right"
-                type="number"
-                value={it.sets}
-                onChange={(e) => updateItem(i, 'sets', Number(e.target.value))}
-              />
-              <div className="col-span-12 md:col-span-2 text-xs opacity-70 md:text-right">
-                {pretty(Math.round(it.weight * it.reps * it.sets))} XP
-              </div>
-            </div>
-          ))}
-
-          {/* 追加種目 */}
-          <div className="pt-2">
-            <button
-              className="px-3 py-2 rounded-xl bg-gray-100 hover:bg-gray-200"
-              onClick={addExtra}
-            >
-              ＋ 追加種目
-            </button>
-          </div>
-
-          {today.extras.map((ex, i) => (
-            <div
-              key={ex.key}
-              className="grid grid-cols-12 md:grid-cols-12 gap-2 items-center rounded-xl md:rounded-none p-3 md:p-0 bg-white md:bg-transparent shadow md:shadow-none"
-            >
-              <input
-                className="col-span-12 md:col-span-3 border rounded-lg px-3 py-2 h-11 text-base"
-                value={ex.name}
-                onChange={(e) => updateExtra(i, 'name', e.target.value)}
-              />
-              <input
-                className="col-span-4 md:col-span-2 border rounded-lg px-3 py-2 h-11 text-base text-right"
-                type="number"
-                value={ex.weight}
-                onChange={(e) =>
-                  updateExtra(i, 'weight', Number(e.target.value))
-                }
-              />
-              <input
-                className="col-span-4 md:col-span-2 border rounded-lg px-3 py-2 h-11 text-base text-right"
-                type="number"
-                value={ex.reps}
-                onChange={(e) => updateExtra(i, 'reps', Number(e.target.value))}
-              />
-              <input
-                className="col-span-4 md:col-span-2 border rounded-lg px-3 py-2 h-11 text-base text-right"
-                type="number"
-                value={ex.sets}
-                onChange={(e) => updateExtra(i, 'sets', Number(e.target.value))}
-              />
-              <label className="col-span-12 md:col-span-2 font-medium flex items-center justify-start md:justify-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={ex.done}
-                  onChange={() => updateExtra(i, 'done', !ex.done)}
-                />
-                実施
-              </label>
-              <div className="col-span-12 md:col-span-1 text-xs opacity-70 md:text-right">
-                {pretty(Math.round(ex.weight * ex.reps * ex.sets))} XP
-              </div>
-            </div>
-          ))}
-
-          {/* ボーナス：レッグエクステンション */}
-          <div className="mt-2 border-t pt-3">
-            <div className="font-semibold mb-1">
-              ボーナス：レッグエクステンション
-            </div>
-            <div className="grid grid-cols-12 md:grid-cols-12 gap-2 items-center rounded-xl md:rounded-none p-3 md:p-0">
-              <label className="col-span-12 md:col-span-3 font-medium flex items-center gap-2 text-base">
-                <input
-                  type="checkbox"
-                  checked={today.legExt.done}
-                  onChange={() =>
-                    setToday((p) => ({
-                      ...p,
-                      legExt: { ...p.legExt, done: !p.legExt.done },
-                    }))
-                  }
-                />
-                実施
-              </label>
-              <input
-                className="col-span-4 md:col-span-2 border rounded-lg px-3 py-2 h-11 text-base text-right"
-                type="number"
-                value={today.legExt.weight}
-                onChange={(e) =>
-                  setToday((p) => ({
-                    ...p,
-                    legExt: { ...p.legExt, weight: Number(e.target.value) },
-                  }))
-                }
-              />
-              <input
-                className="col-span-4 md:col-span-2 border rounded-lg px-3 py-2 h-11 text-base text-right"
-                type="number"
-                value={today.legExt.reps}
-                onChange={(e) =>
-                  setToday((p) => ({
-                    ...p,
-                    legExt: { ...p.legExt, reps: Number(e.target.value) },
-                  }))
-                }
-              />
-              <input
-                className="col-span-4 md:col-span-2 border rounded-lg px-3 py-2 h-11 text-base text-right"
-                type="number"
-                value={today.legExt.sets}
-                onChange={(e) =>
-                  setToday((p) => ({
-                    ...p,
-                    legExt: { ...p.legExt, sets: Number(e.target.value) },
-                  }))
-                }
-              />
-              <div className="col-span-12 md:col-span-2 text-xs opacity-70 md:text-right">
-                {today.legExt.done
-                  ? pretty(
-                      today.legExt.weight *
-                        today.legExt.reps *
-                        today.legExt.sets
-                    )
-                  : 0}{' '}
-                XP
-              </div>
-            </div>
-          </div>
-
-          {/* ボーナス：ラントレ */}
-          <div className="mt-2">
-            <div className="font-semibold mb-1">
-              ボーナス：ラントレ距離（m） = XP
-            </div>
             <input
-              className="border rounded-lg px-3 py-2 h-11 text-base w-40"
-              type="number"
-              value={today.runMeters}
-              onChange={(e) =>
-                setToday((p) => ({
-                  ...p,
-                  runMeters: Number(e.target.value || 0),
-                }))
-              }
-              placeholder="例：2000"
+              type="date"
+              value={todayDate}
+              onChange={(e) => setTodayDate(e.target.value)}
+              className="border rounded-lg px-3 py-2 h-11 text-base bg-white text-black"
             />
           </div>
 
-          {/* 集計 */}
+          {exercises.map((ex, exIdx) => (
+            <div key={ex.key} className="rounded-2xl border bg-white p-4 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                {ex.isBase ? (
+                  <div className="font-semibold text-lg">{ex.name}</div>
+                ) : (
+                  <input
+                    value={ex.name}
+                    onChange={(e) => updateExerciseName(exIdx, e.target.value)}
+                    className="border rounded-lg px-3 py-2 h-11 text-base bg-white text-black w-full md:w-72"
+                  />
+                )}
+
+                <div className="flex gap-2 shrink-0">
+                  <button
+                    onClick={() => addSet(exIdx)}
+                    className="px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-sm"
+                  >
+                    ＋セット
+                  </button>
+                  <button
+                    onClick={() => removeLastSet(exIdx)}
+                    className="px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-sm"
+                  >
+                    −セット
+                  </button>
+                </div>
+              </div>
+
+              <div className="hidden md:grid grid-cols-12 gap-2 text-sm font-medium text-gray-500">
+                <div className="col-span-2">セット</div>
+                <div className="col-span-3 text-right">重量(kg)</div>
+                <div className="col-span-3 text-right">回数</div>
+                <div className="col-span-2 text-right">XP</div>
+                <div className="col-span-2 text-center">状態</div>
+              </div>
+
+              {ex.sets.map((set, setIdx) => (
+                <div
+                  key={`${ex.key}-${setIdx}`}
+                  className="grid grid-cols-12 gap-2 items-center rounded-xl p-3 bg-gray-50"
+                >
+                  <div className="col-span-12 md:col-span-2 font-medium">
+                    Set {setIdx + 1}
+                  </div>
+
+                  <input
+                    type="number"
+                    value={set.weight}
+                    onChange={(e) =>
+                      updateSetField(exIdx, setIdx, "weight", Number(e.target.value || 0))
+                    }
+                    className="col-span-6 md:col-span-3 border rounded-lg px-3 py-2 h-11 text-base text-right bg-white text-black"
+                  />
+
+                  <input
+                    type="number"
+                    value={set.reps}
+                    onChange={(e) =>
+                      updateSetField(exIdx, setIdx, "reps", Number(e.target.value || 0))
+                    }
+                    className="col-span-6 md:col-span-3 border rounded-lg px-3 py-2 h-11 text-base text-right bg-white text-black"
+                  />
+
+                  <div className="col-span-6 md:col-span-2 text-sm md:text-right">
+                    {pretty(set.weight * set.reps)} XP
+                  </div>
+
+                  <div className="col-span-6 md:col-span-2 flex justify-end md:justify-center">
+                    <button
+                      onClick={() => toggleSetDone(exIdx, setIdx)}
+                      className={`px-3 py-2 rounded-lg text-sm font-semibold ${
+                        set.done
+                          ? "bg-green-600 text-white"
+                          : "bg-gray-200 text-gray-800"
+                      }`}
+                    >
+                      {set.done ? "完了済み" : "セット完了"}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))}
+
+          <div className="pt-2">
+            <button
+              onClick={addExtraExercise}
+              className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200"
+            >
+              ＋追加種目
+            </button>
+          </div>
+
+          <div className="space-y-2">
+            <div className="font-semibold">ボーナス：ラントレ距離（m） = XP</div>
+            <input
+              type="number"
+              value={runMeters}
+              onChange={(e) => setRunMeters(Number(e.target.value || 0))}
+              placeholder="例：2000"
+              className="border rounded-lg px-3 py-2 h-11 text-base w-40 bg-white text-black"
+            />
+          </div>
+
           <div className="grid md:grid-cols-2 gap-3 mt-3">
-            <div className="rounded-xl bg-blue-50 p-3">
+            <div className="rounded-xl bg-blue-50 p-4">
               <div className="font-semibold">本日のXP内訳</div>
-              <div className="text-sm">
-                基本：{pretty(calc.baseSum)} / 追加：{pretty(calc.extrasSum)} /
-                レッグEX：{pretty(calc.legExtXP)} / ラン：{pretty(calc.runXP)}
+              <div className="text-sm mt-1">
+                基本：{pretty(calc.baseSum)} / 追加：{pretty(calc.extraSum)} / ラン：{pretty(calc.runXP)}
               </div>
               <div className="text-sm">
-                倍率：{calc.mult.toFixed(2)}（欠け{calc.missing}・追加
-                {calc.added}）
+                倍率：{calc.mult.toFixed(2)}（欠け{calc.missing}・追加{calc.extraDoneCount}）
               </div>
-              <div className="text-xl font-bold mt-1">
+              <div className="text-xl font-bold mt-2">
                 最終XP：{pretty(calc.finalXP)} XP
               </div>
             </div>
+
             <div className="hidden md:flex items-end gap-2">
               <button
                 onClick={commitToday}
@@ -645,13 +606,13 @@ export default function App() {
                 onClick={resetToday}
                 className="px-4 py-3 rounded-2xl bg-gray-100 w-full hover:bg-gray-200"
               >
-                今日の入力をリセット
+                完了状態をリセット
               </button>
             </div>
           </div>
         </div>
 
-        {/* 履歴 */}
+        {/* Logs */}
         <div className="rounded-2xl bg-white shadow p-5">
           <h2 className="text-xl font-semibold mb-2">最近のセッション</h2>
           {notes.length === 0 ? (
@@ -670,9 +631,9 @@ export default function App() {
         </div>
       </div>
 
-      {/* ---- モバイル固定バー ---- */}
+      {/* mobile fixed bar */}
       <div className="md:hidden fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur border-t p-3 z-50">
-        <div className="max-w-5xl mx-auto flex items-center gap-3">
+        <div className="max-w-6xl mx-auto flex items-center gap-3">
           <div className="flex-1">
             <div className="text-xs text-gray-500">本日の最終XP</div>
             <div className="text-lg font-bold">{pretty(calc.finalXP)} XP</div>
@@ -691,13 +652,6 @@ export default function App() {
           </button>
         </div>
       </div>
-
-      <footer className="hidden md:block text-xs opacity-60 text-center py-6">
-        © 筋トレXPトラッカー – ローカル保存版（必要に応じて Firebase / Supabase
-        同期へ拡張可能）
-      </footer>
     </div>
   );
 }
-
-

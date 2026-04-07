@@ -28,6 +28,15 @@ type SavedState = {
   runMeters: number;
 };
 
+function getTodayJST() {
+  return new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
 /** ========= Constants ========= */
 const LS_KEY = "xp_tracker_full_v4";
 
@@ -155,7 +164,7 @@ export default function App() {
   const [totalXP, setTotalXP] = useState<number>(493928);
   const [notes, setNotes] = useState<Note[]>([]);
   const [todayDate, setTodayDate] = useState<string>(
-    new Date().toISOString().slice(0, 10)
+    new date: getTodayJST(),
   );
   const [exercises, setExercises] = useState<ExerciseTemplate[]>(createInitialExercises());
   const [runMeters, setRunMeters] = useState<number>(0);

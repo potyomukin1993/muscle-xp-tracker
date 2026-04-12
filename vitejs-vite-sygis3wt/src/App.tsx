@@ -163,9 +163,7 @@ function resetDoneOnly(exercises: ExerciseTemplate[]) {
 export default function App() {
   const [totalXP, setTotalXP] = useState<number>(493928);
   const [notes, setNotes] = useState<Note[]>([]);
-  const [todayDate, setTodayDate] = useState<string>(
-    new date: getTodayJST(),
-  );
+  const [todayDate, setTodayDate] = useState<string>(getTodayJST());
   const [exercises, setExercises] = useState<ExerciseTemplate[]>(createInitialExercises());
   const [runMeters, setRunMeters] = useState<number>(0);
 

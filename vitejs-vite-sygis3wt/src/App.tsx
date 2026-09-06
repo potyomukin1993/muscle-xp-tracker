@@ -789,6 +789,31 @@ export default function App() {
     setOpenVideoManagers((prev) => ({ ...prev, [key]: true }));
   };
 
+  const deleteExercise = (exerciseKey: string) => {
+    const target = latestStateRef.current.exercises.find(
+      (exercise) => exercise.key === exerciseKey
+    );
+
+    // 標準種目は削除不可。自由追加種目のみ削除できる。
+    if (!target || target.isBase) return;
+
+    if (!confirm(`「${target.name}」を削除しますか？`)) return;
+
+    const nextExercises = latestStateRef.current.exercises.filter(
+      (exercise) => exercise.key !== exerciseKey
+    );
+
+    setExercises(nextExercises);
+    persistNow({ exercises: nextExercises });
+
+    // 削除した種目の動画編集パネル状態も破棄する。
+    setOpenVideoManagers((prev) => {
+      const next = { ...prev };
+      delete next[exerciseKey];
+      return next;
+    });
+  };
+
   const updateExerciseName = (exIdx: number, name: string) => {
     updateExercisesAndPersist((prev) =>
       prev.map((exercise, index) =>
@@ -1302,7 +1327,7 @@ export default function App() {
                     )}
                   </div>
 
-                  <div className="flex gap-2 shrink-0">
+                  <div className="flex flex-wrap gap-2 shrink-0">
                     <button
                       onClick={() => addSet(originalIndex)}
                       className="px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-sm"
@@ -1315,6 +1340,14 @@ export default function App() {
                     >
                       −セット
                     </button>
+                    {!exercise.isBase && (
+                      <button
+                        onClick={() => deleteExercise(exercise.key)}
+                        className="px-3 py-2 rounded-lg bg-red-100 text-red-700 hover:bg-red-200 text-sm font-semibold"
+                      >
+                        種目を削除
+                      </button>
+                    )}
                   </div>
                 </div>
 

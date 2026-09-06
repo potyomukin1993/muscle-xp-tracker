@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
 /** ========= Types ========= */
 type WorkoutPattern = "A" | "B";
@@ -77,7 +77,7 @@ function getTodayJST() {
 /** ========= Constants ========= */
 const LS_KEY = "xp_tracker_full_v5";
 const LEGACY_LS_KEY = "xp_tracker_full_v4";
-const INITIAL_TOTAL_XP = 731_493;
+const INITIAL_TOTAL_XP = 902_277;
 
 // 2年でLv50想定カーブ
 function buildLevelNeeds(start = 1200, growth = 1.11, levels = 50) {
@@ -447,6 +447,29 @@ export default function App() {
   } | null>(null);
   const [loaded, setLoaded] = useState(false);
 
+  // Androidでの画面OFF・別アプリ遷移・プロセス破棄に備え、
+  // 常に最新の保存対象を同期的に参照できるようにする。
+  const latestStateRef = useRef<SavedState>({
+    version: 5,
+    totalXP: INITIAL_TOTAL_XP,
+    notes: [],
+    todayDate: getTodayJST(),
+    exercises: createInitialExercises(),
+    runMeters: 0,
+    currentPattern: "A",
+    lastPattern: null,
+  });
+
+  const persistNow = (overrides: Partial<SavedState> = {}) => {
+    const next: SavedState = {
+      ...latestStateRef.current,
+      ...overrides,
+      version: 5,
+    };
+    latestStateRef.current = next;
+    localStorage.setItem(LS_KEY, JSON.stringify(next));
+  };
+
   // load + v4 -> v5 migration
   useEffect(() => {
     const currentSaved = localStorage.getItem(LS_KEY);
@@ -457,7 +480,7 @@ export default function App() {
         const parsed = JSON.parse(currentSaved) as LegacySavedState;
         if (typeof parsed.totalXP === "number") setTotalXP(parsed.totalXP);
         if (Array.isArray(parsed.notes)) setNotes(parsed.notes);
-        if (typeof parsed.todayDate === "string") setTodayDate(parsed.todayDate);
+        setTodayDate(getTodayJST());
         setExercises(migrateExercises(parsed.exercises));
         if (typeof parsed.runMeters === "number") setRunMeters(parsed.runMeters);
         if (isPattern(parsed.currentPattern)) setCurrentPattern(parsed.currentPattern);
@@ -469,7 +492,7 @@ export default function App() {
         // v5への初回移行時は、ユーザー確認済みの累計XPを採用する
         setTotalXP(INITIAL_TOTAL_XP);
         if (Array.isArray(parsed.notes)) setNotes(parsed.notes);
-        if (typeof parsed.todayDate === "string") setTodayDate(parsed.todayDate);
+        setTodayDate(getTodayJST());
         setExercises(migrateExercises(parsed.exercises));
         if (typeof parsed.runMeters === "number") setRunMeters(parsed.runMeters);
       }
@@ -480,7 +503,7 @@ export default function App() {
     }
   }, []);
 
-  // save
+  // state変更後の通常保存。保存対象のrefも同時に最新化する。
   useEffect(() => {
     if (!loaded) return;
 
@@ -494,6 +517,7 @@ export default function App() {
       currentPattern,
       lastPattern,
     };
+    latestStateRef.current = payload;
     localStorage.setItem(LS_KEY, JSON.stringify(payload));
   }, [
     loaded,
@@ -505,6 +529,43 @@ export default function App() {
     currentPattern,
     lastPattern,
   ]);
+
+  // 別アプリへの遷移、画面OFF、タブ終了の直前にも最新状態を保存する。
+  // アプリへ戻った時は、保存されていた日付ではなく日本時間の今日を自動設定する。
+  useEffect(() => {
+    if (!loaded) return;
+
+    const saveLatest = () => {
+      localStorage.setItem(LS_KEY, JSON.stringify(latestStateRef.current));
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        saveLatest();
+        return;
+      }
+
+      const today = getTodayJST();
+      setTodayDate(today);
+      persistNow({ todayDate: today });
+    };
+
+    const handlePageShow = () => {
+      const today = getTodayJST();
+      setTodayDate(today);
+      persistNow({ todayDate: today });
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pagehide", saveLatest);
+    window.addEventListener("pageshow", handlePageShow);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pagehide", saveLatest);
+      window.removeEventListener("pageshow", handlePageShow);
+    };
+  }, [loaded]);
 
   const visibleExercises = useMemo(
     () =>
@@ -594,8 +655,8 @@ export default function App() {
   };
 
   const toggleSetDone = (exIdx: number, setIdx: number) => {
-    setExercises((prev) =>
-      prev.map((exercise, index) =>
+    setExercises((prev) => {
+      const next = prev.map((exercise, index) =>
         index === exIdx
           ? {
               ...exercise,
@@ -604,8 +665,12 @@ export default function App() {
               ),
             }
           : exercise
-      )
-    );
+      );
+
+      // 完了ボタンを押した瞬間に同期保存する。
+      persistNow({ exercises: next });
+      return next;
+    });
   };
 
   const addSet = (exIdx: number) => {
@@ -673,8 +738,8 @@ export default function App() {
   };
 
   const toggleFormCheck = (exIdx: number, checkId: string) => {
-    setExercises((prev) =>
-      prev.map((exercise, index) =>
+    setExercises((prev) => {
+      const next = prev.map((exercise, index) =>
         index === exIdx
           ? {
               ...exercise,
@@ -685,8 +750,11 @@ export default function App() {
               ),
             }
           : exercise
-      )
-    );
+      );
+
+      persistNow({ exercises: next });
+      return next;
+    });
   };
 
   const updateFormMemoDraft = (exIdx: number, value: string) => {
@@ -749,6 +817,16 @@ export default function App() {
           : exercise
       )
     );
+  };
+
+  const selectPattern = (pattern: WorkoutPattern) => {
+    setCurrentPattern(pattern);
+    persistNow({ currentPattern: pattern });
+  };
+
+  const updateRunMeters = (value: number) => {
+    setRunMeters(value);
+    persistNow({ runMeters: value });
   };
 
   const resetToday = () => {
@@ -970,7 +1048,7 @@ export default function App() {
             {(["A", "B"] as WorkoutPattern[]).map((pattern) => (
               <button
                 key={pattern}
-                onClick={() => setCurrentPattern(pattern)}
+                onClick={() => selectPattern(pattern)}
                 className={`rounded-2xl border px-4 py-4 text-left transition ${
                   currentPattern === pattern
                     ? pattern === "A"

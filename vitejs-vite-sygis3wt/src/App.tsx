@@ -35,7 +35,7 @@ type Note = {
 };
 
 type SavedState = {
-  version: 6;
+  version: 7;
   totalXP: number;
   notes: Note[];
   todayDate: string;
@@ -85,8 +85,8 @@ function getTodayJST() {
 }
 
 /** ========= Constants ========= */
-const LS_KEY = "xp_tracker_full_v6";
-const LEGACY_LS_KEYS = ["xp_tracker_full_v5", "xp_tracker_full_v4"];
+const LS_KEY = "xp_tracker_full_v7";
+const LEGACY_LS_KEYS = ["xp_tracker_full_v6", "xp_tracker_full_v5", "xp_tracker_full_v4"];
 const INITIAL_TOTAL_XP = 902_277;
 
 // 2年でLv50想定カーブ
@@ -164,19 +164,6 @@ function createInitialExercises(): ExerciseTemplate[] {
       formMemoDraft: "",
     },
     {
-      key: "shoulder",
-      name: "ショルダープレス",
-      isBase: true,
-      pattern: "A",
-      sets: [
-        { weight: 32, reps: 10, done: false },
-        { weight: 32, reps: 10, done: false },
-      ],
-      formVideos: [],
-      lastFormMemo: "",
-      formMemoDraft: "",
-    },
-    {
       key: "fly",
       name: "ペックフライ",
       isBase: true,
@@ -210,13 +197,13 @@ function createInitialExercises(): ExerciseTemplate[] {
       formMemoDraft: "",
     },
     {
-      key: "legpress",
-      name: "レッグプレス",
+      key: "side_raise",
+      name: "サイドレイズ",
       isBase: true,
-      pattern: "B",
+      pattern: "A",
       sets: [
-        { weight: 93, reps: 10, done: false },
-        { weight: 93, reps: 10, done: false },
+        { weight: 10, reps: 10, done: false },
+        { weight: 10, reps: 10, done: false },
       ],
       formVideos: [],
       lastFormMemo: "",
@@ -263,19 +250,6 @@ function createInitialExercises(): ExerciseTemplate[] {
       formMemoDraft: "",
     },
     {
-      key: "hammer",
-      name: "ハンマーカール",
-      isBase: true,
-      pattern: "B",
-      sets: [
-        { weight: 32, reps: 10, done: false },
-        { weight: 32, reps: 10, done: false },
-      ],
-      formVideos: [],
-      lastFormMemo: "",
-      formMemoDraft: "",
-    },
-    {
       key: "crunch",
       name: "アブドミナルクランチ",
       isBase: true,
@@ -289,13 +263,13 @@ function createInitialExercises(): ExerciseTemplate[] {
       formMemoDraft: "",
     },
     {
-      key: "legext",
-      name: "レッグエクステンション",
-      isBase: false,
+      key: "legpress",
+      name: "レッグプレス",
+      isBase: true,
       pattern: "B",
       sets: [
-        { weight: 73, reps: 10, done: false },
-        { weight: 73, reps: 10, done: false },
+        { weight: 93, reps: 10, done: false },
+        { weight: 93, reps: 10, done: false },
       ],
       formVideos: [],
       lastFormMemo: "",
@@ -337,18 +311,33 @@ function normalizeVideos(raw: unknown, fallback: FormVideo[] = []): FormVideo[] 
     .filter((video) => video.url.trim() !== "" || video.title.trim() !== "");
 }
 
+const DEPRECATED_STANDARD_KEYS = new Set(["shoulder", "hammer", "legext"]);
+const DEPRECATED_STANDARD_NAMES = new Set([
+  "ショルダープレス",
+  "ハンマーカール",
+  "レッグエクステンション",
+]);
+
 function migrateExercises(rawExercises: LegacyExercise[] | undefined): ExerciseTemplate[] {
   const defaults = createInitialExercises();
   const source = Array.isArray(rawExercises) ? rawExercises : [];
   const matchedIndexes = new Set<number>();
 
   const migratedDefaults = defaults.map((defaultExercise) => {
-    const sourceIndex = source.findIndex(
+    // まず安定したkeyで照合し、新規標準種目などkeyが一致しない場合のみ
+    // 同名の旧・自由追加種目を引き継ぐ。これによりサイドレイズを
+    // 以前「追加種目」として登録していた場合も重量・動画・メモを維持できる。
+    let sourceIndex = source.findIndex(
       (exercise, index) =>
-        !matchedIndexes.has(index) &&
-        (exercise.key === defaultExercise.key ||
-          (!exercise.key && exercise.name === defaultExercise.name))
+        !matchedIndexes.has(index) && exercise.key === defaultExercise.key
     );
+
+    if (sourceIndex < 0) {
+      sourceIndex = source.findIndex(
+        (exercise, index) =>
+          !matchedIndexes.has(index) && exercise.name === defaultExercise.name
+      );
+    }
 
     if (sourceIndex < 0) return defaultExercise;
 
@@ -357,10 +346,8 @@ function migrateExercises(rawExercises: LegacyExercise[] | undefined): ExerciseT
 
     return {
       ...defaultExercise,
-      name: typeof old.name === "string" && old.name ? old.name : defaultExercise.name,
-      isBase:
-        typeof old.isBase === "boolean" ? old.isBase : defaultExercise.isBase,
-      pattern: isPattern(old.pattern) ? old.pattern : defaultExercise.pattern,
+      // 標準種目はv7で定義した名称・A/B所属を優先し、
+      // 既存の重量・回数・動画・メモだけを引き継ぐ。
       sets: normalizeSets(old.sets, defaultExercise.sets),
       formVideos: normalizeVideos(old.formVideos, defaultExercise.formVideos),
       lastFormMemo:
@@ -372,7 +359,19 @@ function migrateExercises(rawExercises: LegacyExercise[] | undefined): ExerciseT
 
   const extras = source
     .map((exercise, index) => ({ exercise, index }))
-    .filter(({ index }) => !matchedIndexes.has(index))
+    .filter(({ exercise, index }) => {
+      if (matchedIndexes.has(index)) return false;
+
+      const key = typeof exercise.key === "string" ? exercise.key : "";
+      const name = typeof exercise.name === "string" ? exercise.name : "";
+
+      // v6以前の標準メニューから外れた種目は、アップデート時に自動削除する。
+      // ユーザーが「＋追加種目」で作った自由種目はそのまま維持する。
+      if (DEPRECATED_STANDARD_KEYS.has(key)) return false;
+      if (DEPRECATED_STANDARD_NAMES.has(name) && exercise.isBase !== false) return false;
+
+      return true;
+    })
     .map(({ exercise: old, index }): ExerciseTemplate => ({
       key:
         typeof old.key === "string" && old.key
@@ -416,7 +415,7 @@ function buildStateFromRaw(raw: LegacySavedState | null): SavedState {
   const rawXP = typeof raw?.totalXP === "number" ? raw.totalXP : INITIAL_TOTAL_XP;
 
   return {
-    version: 6,
+    version: 7,
     totalXP: Math.max(INITIAL_TOTAL_XP, rawXP),
     notes: normalizeNotes(raw?.notes),
     todayDate: today,
@@ -521,7 +520,7 @@ export default function App() {
   const [loaded, setLoaded] = useState(false);
 
   const latestStateRef = useRef<SavedState>({
-    version: 6,
+    version: 7,
     totalXP: INITIAL_TOTAL_XP,
     notes: [],
     todayDate: getTodayJST(),
@@ -540,7 +539,7 @@ export default function App() {
     const next: SavedState = {
       ...latestStateRef.current,
       ...overrides,
-      version: 6,
+      version: 7,
     };
     writeState(next);
     return next;
@@ -557,7 +556,7 @@ export default function App() {
     writeState(state);
   };
 
-  // v6読み込み。v6がなければv5/v4を自動移行する。
+  // v7読み込み。v7がなければv6/v5/v4を自動移行する。
   useEffect(() => {
     let raw: LegacySavedState | null = null;
 
@@ -1018,7 +1017,7 @@ export default function App() {
     const nextPattern = oppositePattern(committedPattern);
 
     const nextState: SavedState = {
-      version: 6,
+      version: 7,
       totalXP: nextTotalXP,
       notes: nextNotes,
       todayDate: today,
@@ -1089,7 +1088,7 @@ export default function App() {
     if (!confirm("全データを初期状態へ戻しますか？")) return;
 
     const nextState: SavedState = {
-      version: 6,
+      version: 7,
       totalXP: INITIAL_TOTAL_XP,
       notes: [],
       todayDate: getTodayJST(),

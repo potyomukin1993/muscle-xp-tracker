@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 /** ========= Types ========= */
 type WorkoutPattern = "A" | "B";
@@ -9,10 +9,11 @@ type SetEntry = {
   done: boolean;
 };
 
-type FormCheck = {
+type FormVideo = {
   id: string;
-  label: string;
-  checked: boolean;
+  title: string;
+  url: string;
+  startSeconds: number;
 };
 
 type ExerciseTemplate = {
@@ -21,7 +22,7 @@ type ExerciseTemplate = {
   isBase: boolean;
   pattern: WorkoutPattern;
   sets: SetEntry[];
-  formChecks: FormCheck[];
+  formVideos: FormVideo[];
   lastFormMemo: string;
   formMemoDraft: string;
 };
@@ -34,7 +35,7 @@ type Note = {
 };
 
 type SavedState = {
-  version: 5;
+  version: 6;
   totalXP: number;
   notes: Note[];
   todayDate: string;
@@ -44,18 +45,26 @@ type SavedState = {
   lastPattern: WorkoutPattern | null;
 };
 
+type LegacyFormCheck = {
+  id?: string;
+  label?: string;
+  checked?: boolean;
+};
+
 type LegacyExercise = {
   key?: string;
   name?: string;
   isBase?: boolean;
-  sets?: SetEntry[];
   pattern?: WorkoutPattern;
-  formChecks?: FormCheck[];
+  sets?: SetEntry[];
+  formChecks?: LegacyFormCheck[];
+  formVideos?: FormVideo[];
   lastFormMemo?: string;
   formMemoDraft?: string;
 };
 
 type LegacySavedState = {
+  version?: number;
   totalXP?: number;
   notes?: Note[];
   todayDate?: string;
@@ -65,6 +74,7 @@ type LegacySavedState = {
   lastPattern?: WorkoutPattern | null;
 };
 
+/** ========= Date ========= */
 function getTodayJST() {
   return new Intl.DateTimeFormat("sv-SE", {
     timeZone: "Asia/Tokyo",
@@ -75,8 +85,8 @@ function getTodayJST() {
 }
 
 /** ========= Constants ========= */
-const LS_KEY = "xp_tracker_full_v5";
-const LEGACY_LS_KEY = "xp_tracker_full_v4";
+const LS_KEY = "xp_tracker_full_v6";
+const LEGACY_LS_KEYS = ["xp_tracker_full_v5", "xp_tracker_full_v4"];
 const INITIAL_TOTAL_XP = 902_277;
 
 // 2年でLv50想定カーブ
@@ -89,6 +99,7 @@ function buildLevelNeeds(start = 1200, growth = 1.11, levels = 50) {
   }
   return arr;
 }
+
 const LEVEL_NEEDS = buildLevelNeeds();
 
 const TITLES = [
@@ -109,6 +120,7 @@ const pretty = (n: number) => n.toLocaleString();
 function computeLevel(totalXP: number) {
   let lvl = 1;
   let rest = totalXP;
+
   for (let i = 0; i < LEVEL_NEEDS.length; i++) {
     const need = LEVEL_NEEDS[i];
     if (rest >= need) {
@@ -118,15 +130,21 @@ function computeLevel(totalXP: number) {
       return { level: lvl, into: rest, toNext: need };
     }
   }
+
   return { level: LEVEL_NEEDS.length + 1, into: 0, toNext: 0 };
 }
 
-const makeChecks = (labels: string[]): FormCheck[] =>
-  labels.map((label, index) => ({
-    id: `check_${index + 1}`,
-    label,
-    checked: false,
-  }));
+function isPattern(value: unknown): value is WorkoutPattern {
+  return value === "A" || value === "B";
+}
+
+function oppositePattern(pattern: WorkoutPattern): WorkoutPattern {
+  return pattern === "A" ? "B" : "A";
+}
+
+function createId(prefix: string) {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
 
 /** ========= Initial exercises ========= */
 function createInitialExercises(): ExerciseTemplate[] {
@@ -141,12 +159,7 @@ function createInitialExercises(): ExerciseTemplate[] {
         { weight: 50, reps: 10, done: false },
         { weight: 50, reps: 10, done: false },
       ],
-      formChecks: makeChecks([
-        "肩甲骨を軽く寄せ、背中をパッドにつける",
-        "肩をすくめず、胸を張った姿勢を保つ",
-        "肘を真横に開きすぎず、手首の下に置く",
-        "反動を使わず、胸の収縮を感じながら押す",
-      ]),
+      formVideos: [],
       lastFormMemo: "",
       formMemoDraft: "",
     },
@@ -159,12 +172,7 @@ function createInitialExercises(): ExerciseTemplate[] {
         { weight: 32, reps: 10, done: false },
         { weight: 32, reps: 10, done: false },
       ],
-      formChecks: makeChecks([
-        "背中をパッドにつけ、腰を反りすぎない",
-        "肩をすくめず、首を長く保つ",
-        "肘を開きすぎず、前腕をおおむね垂直に保つ",
-        "肩に痛みが出ない可動域で、やや前上方へ押す",
-      ]),
+      formVideos: [],
       lastFormMemo: "",
       formMemoDraft: "",
     },
@@ -177,12 +185,7 @@ function createInitialExercises(): ExerciseTemplate[] {
         { weight: 32, reps: 10, done: false },
         { weight: 32, reps: 10, done: false },
       ],
-      formChecks: makeChecks([
-        "胸を張り、背中を細長いパッドにつける",
-        "肩をすくめず、肩甲骨を軽く寄せて固定する",
-        "肘の曲がりを保ち、腕ではなく胸で閉じる",
-        "戻しすぎず、負荷が抜けない範囲でゆっくり戻す",
-      ]),
+      formVideos: [],
       lastFormMemo: "",
       formMemoDraft: "",
     },
@@ -195,12 +198,14 @@ function createInitialExercises(): ExerciseTemplate[] {
         { weight: 23, reps: 10, done: false },
         { weight: 23, reps: 10, done: false },
       ],
-      formChecks: makeChecks([
-        "肘をマシンの回転軸付近に合わせる",
-        "肘を開かず、体の横で固定する",
-        "肩をすくめず、上体を反らさない",
-        "反動を使わず、肘を伸ばして三頭筋を収縮させる",
-      ]),
+      formVideos: [
+        {
+          id: "triceps_reference_1",
+          title: "オーバーヘッドトライセップス参考",
+          url: "https://youtube.com/shorts/Auf16cO1Zg8",
+          startSeconds: 0,
+        },
+      ],
       lastFormMemo: "",
       formMemoDraft: "",
     },
@@ -213,12 +218,7 @@ function createInitialExercises(): ExerciseTemplate[] {
         { weight: 93, reps: 10, done: false },
         { weight: 93, reps: 10, done: false },
       ],
-      formChecks: makeChecks([
-        "足裏全体をフットプレートにつける",
-        "膝とつま先を同じ方向へ向ける",
-        "深く下ろしても腰と骨盤をシートから浮かせない",
-        "膝を完全にロックせず、反動なしで押す",
-      ]),
+      formVideos: [],
       lastFormMemo: "",
       formMemoDraft: "",
     },
@@ -231,12 +231,7 @@ function createInitialExercises(): ExerciseTemplate[] {
         { weight: 59, reps: 10, done: false },
         { weight: 59, reps: 10, done: false },
       ],
-      formChecks: makeChecks([
-        "大腿部パッドで体を固定し、胸を軽く張る",
-        "引き始めに肩を下げ、肩をすくめない",
-        "肘を脇腹へ近づける意識で胸上部へ引く",
-        "上体を大きく倒さず、戻しもゆっくり行う",
-      ]),
+      formVideos: [],
       lastFormMemo: "",
       formMemoDraft: "",
     },
@@ -250,12 +245,7 @@ function createInitialExercises(): ExerciseTemplate[] {
         { weight: 52, reps: 10, done: false },
         { weight: 52, reps: 10, done: false },
       ],
-      formChecks: makeChecks([
-        "足を安定させ、胸を張って背骨をまっすぐ保つ",
-        "肩をすくめず、肩甲骨を後ろへ寄せて引く",
-        "肘を体の近くに通し、みぞおち付近へ引く",
-        "上体の反動を使わず、腕を戻す時も負荷を保つ",
-      ]),
+      formVideos: [],
       lastFormMemo: "",
       formMemoDraft: "",
     },
@@ -268,12 +258,7 @@ function createInitialExercises(): ExerciseTemplate[] {
         { weight: 36, reps: 10, done: false },
         { weight: 36, reps: 10, done: false },
       ],
-      formChecks: makeChecks([
-        "肘をマシンの回転軸付近に合わせる",
-        "上腕をパッドにつけ、肘の位置を動かさない",
-        "肩を前へ出さず、体の反動を使わない",
-        "下ろす局面をゆっくり行い、肘を乱暴に伸ばし切らない",
-      ]),
+      formVideos: [],
       lastFormMemo: "",
       formMemoDraft: "",
     },
@@ -286,12 +271,7 @@ function createInitialExercises(): ExerciseTemplate[] {
         { weight: 32, reps: 10, done: false },
         { weight: 32, reps: 10, done: false },
       ],
-      formChecks: makeChecks([
-        "ニュートラルグリップを保ち、手首を反らさない",
-        "上腕をパッドにつけ、肘を固定する",
-        "肩や上体を使って持ち上げない",
-        "下ろす局面をゆっくり行い、負荷を抜かない",
-      ]),
+      formVideos: [],
       lastFormMemo: "",
       formMemoDraft: "",
     },
@@ -304,12 +284,7 @@ function createInitialExercises(): ExerciseTemplate[] {
         { weight: 59, reps: 15, done: false },
         { weight: 59, reps: 15, done: false },
       ],
-      formChecks: makeChecks([
-        "背中と肩をパッドにつけ、足を安定させる",
-        "腕で押し込まず、みぞおちを骨盤へ近づける",
-        "腰だけを折らず、腹部全体を丸める",
-        "戻す時も反動を使わず、腹筋の緊張を保つ",
-      ]),
+      formVideos: [],
       lastFormMemo: "",
       formMemoDraft: "",
     },
@@ -322,67 +297,72 @@ function createInitialExercises(): ExerciseTemplate[] {
         { weight: 73, reps: 10, done: false },
         { weight: 73, reps: 10, done: false },
       ],
-      formChecks: makeChecks([
-        "膝をマシンの回転軸に合わせる",
-        "背中と骨盤をシートにつける",
-        "反動を使わず、大腿四頭筋で持ち上げる",
-        "膝を乱暴にロックせず、ゆっくり戻す",
-      ]),
+      formVideos: [],
       lastFormMemo: "",
       formMemoDraft: "",
     },
   ];
 }
 
-function resetSessionFields(exercises: ExerciseTemplate[]) {
-  return exercises.map((ex) => ({
-    ...ex,
-    sets: ex.sets.map((s) => ({ ...s, done: false })),
-    formChecks: ex.formChecks.map((check) => ({ ...check, checked: false })),
-    formMemoDraft: "",
-  }));
+/** ========= Migration / normalization ========= */
+function normalizeSets(raw: unknown, fallback: SetEntry[]): SetEntry[] {
+  if (!Array.isArray(raw) || raw.length === 0) return fallback;
+
+  return raw.map((item) => {
+    const set = item as Partial<SetEntry>;
+    return {
+      weight: Number(set.weight) || 0,
+      reps: Number(set.reps) || 0,
+      done: Boolean(set.done),
+    };
+  });
 }
 
-function isPattern(value: unknown): value is WorkoutPattern {
-  return value === "A" || value === "B";
+function normalizeVideos(raw: unknown, fallback: FormVideo[] = []): FormVideo[] {
+  if (!Array.isArray(raw)) return fallback;
+
+  return raw
+    .map((item, index) => {
+      const video = item as Partial<FormVideo>;
+      return {
+        id: typeof video.id === "string" && video.id ? video.id : `video_${index + 1}`,
+        title:
+          typeof video.title === "string" && video.title.trim()
+            ? video.title
+            : `参考動画 ${index + 1}`,
+        url: typeof video.url === "string" ? video.url : "",
+        startSeconds: Math.max(0, Math.floor(Number(video.startSeconds) || 0)),
+      };
+    })
+    .filter((video) => video.url.trim() !== "" || video.title.trim() !== "");
 }
 
 function migrateExercises(rawExercises: LegacyExercise[] | undefined): ExerciseTemplate[] {
   const defaults = createInitialExercises();
   const source = Array.isArray(rawExercises) ? rawExercises : [];
-
-  const usedKeys = new Set<string>();
+  const matchedIndexes = new Set<number>();
 
   const migratedDefaults = defaults.map((defaultExercise) => {
-    const old = source.find(
-      (exercise) =>
-        exercise.key === defaultExercise.key ||
-        (!exercise.key && exercise.name === defaultExercise.name)
+    const sourceIndex = source.findIndex(
+      (exercise, index) =>
+        !matchedIndexes.has(index) &&
+        (exercise.key === defaultExercise.key ||
+          (!exercise.key && exercise.name === defaultExercise.name))
     );
 
-    if (!old) return defaultExercise;
-    if (old.key) usedKeys.add(old.key);
+    if (sourceIndex < 0) return defaultExercise;
+
+    matchedIndexes.add(sourceIndex);
+    const old = source[sourceIndex];
 
     return {
       ...defaultExercise,
-      name: typeof old.name === "string" ? old.name : defaultExercise.name,
-      sets:
-        Array.isArray(old.sets) && old.sets.length > 0
-          ? old.sets.map((set) => ({
-              weight: Number(set.weight) || 0,
-              reps: Number(set.reps) || 0,
-              done: Boolean(set.done),
-            }))
-          : defaultExercise.sets,
+      name: typeof old.name === "string" && old.name ? old.name : defaultExercise.name,
+      isBase:
+        typeof old.isBase === "boolean" ? old.isBase : defaultExercise.isBase,
       pattern: isPattern(old.pattern) ? old.pattern : defaultExercise.pattern,
-      formChecks:
-        Array.isArray(old.formChecks) && old.formChecks.length > 0
-          ? old.formChecks.map((check, index) => ({
-              id: check.id || `check_${index + 1}`,
-              label: check.label || "フォーム項目",
-              checked: Boolean(check.checked),
-            }))
-          : defaultExercise.formChecks,
+      sets: normalizeSets(old.sets, defaultExercise.sets),
+      formVideos: normalizeVideos(old.formVideos, defaultExercise.formVideos),
       lastFormMemo:
         typeof old.lastFormMemo === "string" ? old.lastFormMemo : "",
       formMemoDraft:
@@ -391,35 +371,21 @@ function migrateExercises(rawExercises: LegacyExercise[] | undefined): ExerciseT
   });
 
   const extras = source
-    .filter((old) => {
-      const key = old.key || "";
-      const matchesDefault = defaults.some(
-        (defaultExercise) =>
-          defaultExercise.key === key ||
-          (!key && defaultExercise.name === old.name)
-      );
-      return !matchesDefault && !usedKeys.has(key);
-    })
-    .map((old, index): ExerciseTemplate => ({
-      key: old.key || `extra_migrated_${index}_${Date.now()}`,
-      name: typeof old.name === "string" ? old.name : "追加種目",
+    .map((exercise, index) => ({ exercise, index }))
+    .filter(({ index }) => !matchedIndexes.has(index))
+    .map(({ exercise: old, index }): ExerciseTemplate => ({
+      key:
+        typeof old.key === "string" && old.key
+          ? old.key
+          : `extra_migrated_${index}`,
+      name:
+        typeof old.name === "string" && old.name ? old.name : "追加種目",
       isBase: Boolean(old.isBase),
       pattern: isPattern(old.pattern) ? old.pattern : "B",
-      sets:
-        Array.isArray(old.sets) && old.sets.length > 0
-          ? old.sets.map((set) => ({
-              weight: Number(set.weight) || 0,
-              reps: Number(set.reps) || 0,
-              done: Boolean(set.done),
-            }))
-          : [{ weight: 20, reps: 10, done: false }],
-      formChecks: Array.isArray(old.formChecks)
-        ? old.formChecks.map((check, checkIndex) => ({
-            id: check.id || `check_${checkIndex + 1}`,
-            label: check.label || "フォーム項目",
-            checked: Boolean(check.checked),
-          }))
-        : [],
+      sets: normalizeSets(old.sets, [
+        { weight: 20, reps: 10, done: false },
+      ]),
+      formVideos: normalizeVideos(old.formVideos, []),
       lastFormMemo:
         typeof old.lastFormMemo === "string" ? old.lastFormMemo : "",
       formMemoDraft:
@@ -429,109 +395,196 @@ function migrateExercises(rawExercises: LegacyExercise[] | undefined): ExerciseT
   return [...migratedDefaults, ...extras];
 }
 
+function normalizeNotes(raw: unknown): Note[] {
+  if (!Array.isArray(raw)) return [];
+
+  return raw
+    .map((item) => {
+      const note = item as Partial<Note>;
+      return {
+        date: typeof note.date === "string" ? note.date : getTodayJST(),
+        xp: Number(note.xp) || 0,
+        memo: typeof note.memo === "string" ? note.memo : "",
+        pattern: isPattern(note.pattern) ? note.pattern : undefined,
+      };
+    })
+    .filter((note) => note.xp !== 0 || note.memo || note.date);
+}
+
+function buildStateFromRaw(raw: LegacySavedState | null): SavedState {
+  const today = getTodayJST();
+  const rawXP = typeof raw?.totalXP === "number" ? raw.totalXP : INITIAL_TOTAL_XP;
+
+  return {
+    version: 6,
+    totalXP: Math.max(INITIAL_TOTAL_XP, rawXP),
+    notes: normalizeNotes(raw?.notes),
+    todayDate: today,
+    exercises: migrateExercises(raw?.exercises),
+    runMeters: typeof raw?.runMeters === "number" ? raw.runMeters : 0,
+    currentPattern: isPattern(raw?.currentPattern) ? raw.currentPattern : "A",
+    lastPattern:
+      raw?.lastPattern === null || isPattern(raw?.lastPattern)
+        ? raw.lastPattern ?? null
+        : null,
+  };
+}
+
+function resetAllSessionFields(exercises: ExerciseTemplate[]) {
+  return exercises.map((exercise) => ({
+    ...exercise,
+    sets: exercise.sets.map((set) => ({ ...set, done: false })),
+    formMemoDraft: "",
+  }));
+}
+
+/** ========= Video helpers ========= */
+function clampStartSeconds(value: number) {
+  return Math.max(0, Math.floor(Number.isFinite(value) ? value : 0));
+}
+
+function formatStartTime(totalSeconds: number) {
+  const safe = clampStartSeconds(totalSeconds);
+  const minutes = Math.floor(safe / 60);
+  const seconds = safe % 60;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+
+function buildVideoUrl(video: FormVideo) {
+  const raw = video.url.trim();
+  if (!raw) return "";
+
+  const startSeconds = clampStartSeconds(video.startSeconds);
+
+  try {
+    const normalizedRaw = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+    const parsed = new URL(normalizedRaw);
+    const host = parsed.hostname
+      .toLowerCase()
+      .replace(/^www\./, "")
+      .replace(/^m\./, "");
+
+    let youtubeId = "";
+
+    if (host === "youtu.be") {
+      youtubeId = parsed.pathname.split("/").filter(Boolean)[0] ?? "";
+    } else if (host === "youtube.com" || host.endsWith(".youtube.com")) {
+      if (parsed.pathname === "/watch") {
+        youtubeId = parsed.searchParams.get("v") ?? "";
+      } else if (parsed.pathname.startsWith("/shorts/")) {
+        youtubeId = parsed.pathname.split("/")[2] ?? "";
+      } else if (parsed.pathname.startsWith("/embed/")) {
+        youtubeId = parsed.pathname.split("/")[2] ?? "";
+      }
+    }
+
+    if (youtubeId) {
+      const youtubeUrl = new URL("https://www.youtube.com/watch");
+      youtubeUrl.searchParams.set("v", youtubeId);
+      if (startSeconds > 0) {
+        youtubeUrl.searchParams.set("t", `${startSeconds}s`);
+      }
+      return youtubeUrl.toString();
+    }
+
+    if (startSeconds > 0) {
+      parsed.searchParams.set("t", `${startSeconds}s`);
+    }
+
+    return parsed.toString();
+  } catch {
+    return raw;
+  }
+}
+
+/** ========= App ========= */
 export default function App() {
+  const initialExercisesRef = useRef<ExerciseTemplate[]>(createInitialExercises());
+
   const [totalXP, setTotalXP] = useState<number>(INITIAL_TOTAL_XP);
   const [notes, setNotes] = useState<Note[]>([]);
   const [todayDate, setTodayDate] = useState<string>(getTodayJST());
-  const [exercises, setExercises] = useState<ExerciseTemplate[]>(createInitialExercises());
+  const [exercises, setExercises] = useState<ExerciseTemplate[]>(
+    initialExercisesRef.current
+  );
   const [runMeters, setRunMeters] = useState<number>(0);
   const [currentPattern, setCurrentPattern] = useState<WorkoutPattern>("A");
   const [lastPattern, setLastPattern] = useState<WorkoutPattern | null>(null);
-  const [openForms, setOpenForms] = useState<Record<string, boolean>>({});
-  const [editingForms, setEditingForms] = useState<Record<string, boolean>>({});
+  const [openVideoManagers, setOpenVideoManagers] = useState<
+    Record<string, boolean>
+  >({});
   const [celebration, setCelebration] = useState<{
     xp: number;
     oldLevel: number;
     newLevel: number;
-    perfect: boolean;
   } | null>(null);
   const [loaded, setLoaded] = useState(false);
 
-  // Androidでの画面OFF・別アプリ遷移・プロセス破棄に備え、
-  // 常に最新の保存対象を同期的に参照できるようにする。
   const latestStateRef = useRef<SavedState>({
-    version: 5,
+    version: 6,
     totalXP: INITIAL_TOTAL_XP,
     notes: [],
     todayDate: getTodayJST(),
-    exercises: createInitialExercises(),
+    exercises: initialExercisesRef.current,
     runMeters: 0,
     currentPattern: "A",
     lastPattern: null,
   });
 
-  const persistNow = (overrides: Partial<SavedState> = {}) => {
-    const next: SavedState = {
-      ...latestStateRef.current,
-      ...overrides,
-      version: 5,
-    };
+  const writeState = (next: SavedState) => {
     latestStateRef.current = next;
     localStorage.setItem(LS_KEY, JSON.stringify(next));
   };
 
-  // load + v4 -> v5 migration
+  const persistNow = (overrides: Partial<SavedState> = {}) => {
+    const next: SavedState = {
+      ...latestStateRef.current,
+      ...overrides,
+      version: 6,
+    };
+    writeState(next);
+    return next;
+  };
+
+  const applySavedState = (state: SavedState) => {
+    setTotalXP(state.totalXP);
+    setNotes(state.notes);
+    setTodayDate(state.todayDate);
+    setExercises(state.exercises);
+    setRunMeters(state.runMeters);
+    setCurrentPattern(state.currentPattern);
+    setLastPattern(state.lastPattern);
+    writeState(state);
+  };
+
+  // v6読み込み。v6がなければv5/v4を自動移行する。
   useEffect(() => {
-    const currentSaved = localStorage.getItem(LS_KEY);
-    const legacySaved = localStorage.getItem(LEGACY_LS_KEY);
+    let raw: LegacySavedState | null = null;
 
     try {
-      if (currentSaved) {
-        const parsed = JSON.parse(currentSaved) as LegacySavedState;
-        if (typeof parsed.totalXP === "number") setTotalXP(parsed.totalXP);
-        if (Array.isArray(parsed.notes)) setNotes(parsed.notes);
-        setTodayDate(getTodayJST());
-        setExercises(migrateExercises(parsed.exercises));
-        if (typeof parsed.runMeters === "number") setRunMeters(parsed.runMeters);
-        if (isPattern(parsed.currentPattern)) setCurrentPattern(parsed.currentPattern);
-        if (parsed.lastPattern === null || isPattern(parsed.lastPattern)) {
-          setLastPattern(parsed.lastPattern ?? null);
+      const current = localStorage.getItem(LS_KEY);
+      if (current) {
+        raw = JSON.parse(current) as LegacySavedState;
+      } else {
+        for (const key of LEGACY_LS_KEYS) {
+          const legacy = localStorage.getItem(key);
+          if (legacy) {
+            raw = JSON.parse(legacy) as LegacySavedState;
+            break;
+          }
         }
-      } else if (legacySaved) {
-        const parsed = JSON.parse(legacySaved) as LegacySavedState;
-        // v5への初回移行時は、ユーザー確認済みの累計XPを採用する
-        setTotalXP(INITIAL_TOTAL_XP);
-        if (Array.isArray(parsed.notes)) setNotes(parsed.notes);
-        setTodayDate(getTodayJST());
-        setExercises(migrateExercises(parsed.exercises));
-        if (typeof parsed.runMeters === "number") setRunMeters(parsed.runMeters);
       }
     } catch {
-      // 壊れた保存データは初期状態で開始
-    } finally {
-      setLoaded(true);
+      raw = null;
     }
+
+    const state = buildStateFromRaw(raw);
+    applySavedState(state);
+    setLoaded(true);
   }, []);
 
-  // state変更後の通常保存。保存対象のrefも同時に最新化する。
-  useEffect(() => {
-    if (!loaded) return;
-
-    const payload: SavedState = {
-      version: 5,
-      totalXP,
-      notes,
-      todayDate,
-      exercises,
-      runMeters,
-      currentPattern,
-      lastPattern,
-    };
-    latestStateRef.current = payload;
-    localStorage.setItem(LS_KEY, JSON.stringify(payload));
-  }, [
-    loaded,
-    totalXP,
-    notes,
-    todayDate,
-    exercises,
-    runMeters,
-    currentPattern,
-    lastPattern,
-  ]);
-
-  // 別アプリへの遷移、画面OFF、タブ終了の直前にも最新状態を保存する。
-  // アプリへ戻った時は、保存されていた日付ではなく日本時間の今日を自動設定する。
+  // バックグラウンド移行・画面OFF・タブ終了時は同期保存。
+  // 復帰・再表示時は日本時間の今日へ補正する。
   useEffect(() => {
     if (!loaded) return;
 
@@ -539,33 +592,47 @@ export default function App() {
       localStorage.setItem(LS_KEY, JSON.stringify(latestStateRef.current));
     };
 
+    const syncToday = () => {
+      const today = getTodayJST();
+      if (latestStateRef.current.todayDate !== today) {
+        setTodayDate(today);
+        persistNow({ todayDate: today });
+      } else {
+        saveLatest();
+      }
+    };
+
     const handleVisibilityChange = () => {
       if (document.visibilityState === "hidden") {
         saveLatest();
-        return;
+      } else {
+        syncToday();
       }
-
-      const today = getTodayJST();
-      setTodayDate(today);
-      persistNow({ todayDate: today });
-    };
-
-    const handlePageShow = () => {
-      const today = getTodayJST();
-      setTodayDate(today);
-      persistNow({ todayDate: today });
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("pagehide", saveLatest);
-    window.addEventListener("pageshow", handlePageShow);
+    window.addEventListener("beforeunload", saveLatest);
+    window.addEventListener("pageshow", syncToday);
+    window.addEventListener("focus", syncToday);
 
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("pagehide", saveLatest);
-      window.removeEventListener("pageshow", handlePageShow);
+      window.removeEventListener("beforeunload", saveLatest);
+      window.removeEventListener("pageshow", syncToday);
+      window.removeEventListener("focus", syncToday);
     };
   }, [loaded]);
+
+  const updateExercisesAndPersist = (
+    updater: (prev: ExerciseTemplate[]) => ExerciseTemplate[]
+  ) => {
+    const nextExercises = updater(latestStateRef.current.exercises);
+    setExercises(nextExercises);
+    persistNow({ exercises: nextExercises });
+    return nextExercises;
+  };
 
   const visibleExercises = useMemo(
     () =>
@@ -575,8 +642,14 @@ export default function App() {
     [exercises, currentPattern]
   );
 
+  // XPは現在選択中のA/Bメニューだけを対象にする。
+  // フォーム倍率は廃止。ランXPは単純加算。
   const calc = useMemo(() => {
-    const strengthXP = exercises.reduce(
+    const currentExercises = exercises.filter(
+      (exercise) => exercise.pattern === currentPattern
+    );
+
+    const strengthXP = currentExercises.reduce(
       (sum, exercise) =>
         sum +
         exercise.sets
@@ -585,43 +658,29 @@ export default function App() {
       0
     );
 
-    const performedExercises = exercises.filter((exercise) =>
+    const performedCount = currentExercises.filter((exercise) =>
       exercise.sets.some((set) => set.done)
-    );
+    ).length;
 
-    const formRequiredExercises = performedExercises.filter(
-      (exercise) => exercise.formChecks.length > 0
-    );
-
-    const allFormsChecked = formRequiredExercises.every((exercise) =>
-      exercise.formChecks.every((check) => check.checked)
-    );
-
-    const hasStrengthTraining = performedExercises.length > 0;
-    const formMultiplier =
-      hasStrengthTraining && !allFormsChecked ? 0.8 : 1.0;
-
-    const strengthAfterForm = Math.round(strengthXP * formMultiplier);
     const runXP = runMeters;
-    const finalXP = strengthAfterForm + runXP;
+    const finalXP = strengthXP + runXP;
 
     return {
       strengthXP,
-      strengthAfterForm,
       runXP,
-      formMultiplier,
       finalXP,
-      performedCount: performedExercises.length,
-      perfectForm: hasStrengthTraining && allFormsChecked,
+      performedCount,
     };
-  }, [exercises, runMeters]);
+  }, [exercises, currentPattern, runMeters]);
 
   const lv = computeLevel(totalXP);
   const title = TITLES[Math.min(lv.level - 1, TITLES.length - 1)];
   const levelProgress =
     lv.toNext === 0 ? 100 : Math.min(100, (lv.into / lv.toNext) * 100);
 
-  const recommendedPattern: WorkoutPattern = lastPattern === "A" ? "B" : "A";
+  const recommendedPattern: WorkoutPattern = lastPattern
+    ? oppositePattern(lastPattern)
+    : "A";
 
   const currentBaseExercises = visibleExercises.filter(
     ({ exercise }) => exercise.isBase
@@ -632,7 +691,19 @@ export default function App() {
   const workoutProgress =
     currentBaseExercises.length === 0
       ? 0
-      : Math.round((completedBaseExercises / currentBaseExercises.length) * 100);
+      : Math.round(
+          (completedBaseExercises / currentBaseExercises.length) * 100
+        );
+
+  const handleDateChange = (value: string) => {
+    setTodayDate(value);
+    persistNow({ todayDate: value });
+  };
+
+  const selectPattern = (pattern: WorkoutPattern) => {
+    setCurrentPattern(pattern);
+    persistNow({ currentPattern: pattern });
+  };
 
   const updateSetField = (
     exIdx: number,
@@ -640,13 +711,15 @@ export default function App() {
     field: "weight" | "reps",
     value: number
   ) => {
-    setExercises((prev) =>
+    updateExercisesAndPersist((prev) =>
       prev.map((exercise, index) =>
         index === exIdx
           ? {
               ...exercise,
               sets: exercise.sets.map((set, setIndex) =>
-                setIndex === setIdx ? { ...set, [field]: value } : set
+                setIndex === setIdx
+                  ? { ...set, [field]: Math.max(0, value) }
+                  : set
               ),
             }
           : exercise
@@ -655,8 +728,8 @@ export default function App() {
   };
 
   const toggleSetDone = (exIdx: number, setIdx: number) => {
-    setExercises((prev) => {
-      const next = prev.map((exercise, index) =>
+    updateExercisesAndPersist((prev) =>
+      prev.map((exercise, index) =>
         index === exIdx
           ? {
               ...exercise,
@@ -665,18 +738,15 @@ export default function App() {
               ),
             }
           : exercise
-      );
-
-      // 完了ボタンを押した瞬間に同期保存する。
-      persistNow({ exercises: next });
-      return next;
-    });
+      )
+    );
   };
 
   const addSet = (exIdx: number) => {
-    setExercises((prev) =>
+    updateExercisesAndPersist((prev) =>
       prev.map((exercise, index) => {
         if (index !== exIdx) return exercise;
+
         const last = exercise.sets[exercise.sets.length - 1];
         return {
           ...exercise,
@@ -694,7 +764,7 @@ export default function App() {
   };
 
   const removeLastSet = (exIdx: number) => {
-    setExercises((prev) =>
+    updateExercisesAndPersist((prev) =>
       prev.map((exercise, index) => {
         if (index !== exIdx || exercise.sets.length <= 1) return exercise;
         return { ...exercise, sets: exercise.sets.slice(0, -1) };
@@ -703,8 +773,8 @@ export default function App() {
   };
 
   const addExtraExercise = () => {
-    const key = `extra_${Date.now()}`;
-    setExercises((prev) => [
+    const key = createId("extra");
+    updateExercisesAndPersist((prev) => [
       ...prev,
       {
         key,
@@ -712,71 +782,55 @@ export default function App() {
         isBase: false,
         pattern: currentPattern,
         sets: [{ weight: 20, reps: 10, done: false }],
-        formChecks: [],
+        formVideos: [],
         lastFormMemo: "",
         formMemoDraft: "",
       },
     ]);
-    setOpenForms((prev) => ({ ...prev, [key]: true }));
-    setEditingForms((prev) => ({ ...prev, [key]: true }));
+    setOpenVideoManagers((prev) => ({ ...prev, [key]: true }));
   };
 
   const updateExerciseName = (exIdx: number, name: string) => {
-    setExercises((prev) =>
+    updateExercisesAndPersist((prev) =>
       prev.map((exercise, index) =>
         index === exIdx ? { ...exercise, name } : exercise
       )
     );
   };
 
-  const updateExercisePattern = (exIdx: number, pattern: WorkoutPattern) => {
-    setExercises((prev) =>
+  const updateExercisePattern = (
+    exIdx: number,
+    pattern: WorkoutPattern
+  ) => {
+    updateExercisesAndPersist((prev) =>
       prev.map((exercise, index) =>
         index === exIdx ? { ...exercise, pattern } : exercise
       )
     );
   };
 
-  const toggleFormCheck = (exIdx: number, checkId: string) => {
-    setExercises((prev) => {
-      const next = prev.map((exercise, index) =>
-        index === exIdx
-          ? {
-              ...exercise,
-              formChecks: exercise.formChecks.map((check) =>
-                check.id === checkId
-                  ? { ...check, checked: !check.checked }
-                  : check
-              ),
-            }
-          : exercise
-      );
-
-      persistNow({ exercises: next });
-      return next;
-    });
-  };
-
   const updateFormMemoDraft = (exIdx: number, value: string) => {
-    setExercises((prev) =>
+    updateExercisesAndPersist((prev) =>
       prev.map((exercise, index) =>
         index === exIdx ? { ...exercise, formMemoDraft: value } : exercise
       )
     );
   };
 
-  const addFormCheck = (exIdx: number) => {
-    setExercises((prev) =>
+  const addFormVideo = (exIdx: number) => {
+    const id = createId("video");
+    updateExercisesAndPersist((prev) =>
       prev.map((exercise, index) =>
         index === exIdx
           ? {
               ...exercise,
-              formChecks: [
-                ...exercise.formChecks,
+              formVideos: [
+                ...exercise.formVideos,
                 {
-                  id: `check_${Date.now()}`,
-                  label: "新しいフォーム項目",
-                  checked: false,
+                  id,
+                  title: `参考動画 ${exercise.formVideos.length + 1}`,
+                  url: "",
+                  startSeconds: 0,
                 },
               ],
             }
@@ -785,18 +839,27 @@ export default function App() {
     );
   };
 
-  const updateFormCheckLabel = (
+  const updateFormVideo = (
     exIdx: number,
-    checkId: string,
-    label: string
+    videoId: string,
+    patch: Partial<FormVideo>
   ) => {
-    setExercises((prev) =>
+    updateExercisesAndPersist((prev) =>
       prev.map((exercise, index) =>
         index === exIdx
           ? {
               ...exercise,
-              formChecks: exercise.formChecks.map((check) =>
-                check.id === checkId ? { ...check, label } : check
+              formVideos: exercise.formVideos.map((video) =>
+                video.id === videoId
+                  ? {
+                      ...video,
+                      ...patch,
+                      startSeconds:
+                        patch.startSeconds === undefined
+                          ? video.startSeconds
+                          : clampStartSeconds(patch.startSeconds),
+                    }
+                  : video
               ),
             }
           : exercise
@@ -804,14 +867,34 @@ export default function App() {
     );
   };
 
-  const removeFormCheck = (exIdx: number, checkId: string) => {
-    setExercises((prev) =>
+  const updateVideoTimePart = (
+    exIdx: number,
+    video: FormVideo,
+    part: "minutes" | "seconds",
+    value: number
+  ) => {
+    const currentMinutes = Math.floor(video.startSeconds / 60);
+    const currentSeconds = video.startSeconds % 60;
+    const minutes =
+      part === "minutes" ? Math.max(0, Math.floor(value || 0)) : currentMinutes;
+    const seconds =
+      part === "seconds"
+        ? Math.min(59, Math.max(0, Math.floor(value || 0)))
+        : currentSeconds;
+
+    updateFormVideo(exIdx, video.id, {
+      startSeconds: minutes * 60 + seconds,
+    });
+  };
+
+  const removeFormVideo = (exIdx: number, videoId: string) => {
+    updateExercisesAndPersist((prev) =>
       prev.map((exercise, index) =>
         index === exIdx
           ? {
               ...exercise,
-              formChecks: exercise.formChecks.filter(
-                (check) => check.id !== checkId
+              formVideos: exercise.formVideos.filter(
+                (video) => video.id !== videoId
               ),
             }
           : exercise
@@ -819,20 +902,77 @@ export default function App() {
     );
   };
 
-  const selectPattern = (pattern: WorkoutPattern) => {
-    setCurrentPattern(pattern);
-    persistNow({ currentPattern: pattern });
+  const moveFormVideo = (
+    exIdx: number,
+    videoId: string,
+    direction: -1 | 1
+  ) => {
+    updateExercisesAndPersist((prev) =>
+      prev.map((exercise, index) => {
+        if (index !== exIdx) return exercise;
+
+        const currentIndex = exercise.formVideos.findIndex(
+          (video) => video.id === videoId
+        );
+        const targetIndex = currentIndex + direction;
+
+        if (
+          currentIndex < 0 ||
+          targetIndex < 0 ||
+          targetIndex >= exercise.formVideos.length
+        ) {
+          return exercise;
+        }
+
+        const nextVideos = [...exercise.formVideos];
+        const [moved] = nextVideos.splice(currentIndex, 1);
+        nextVideos.splice(targetIndex, 0, moved);
+
+        return { ...exercise, formVideos: nextVideos };
+      })
+    );
+  };
+
+  const openFormVideo = (video: FormVideo) => {
+    if (!video.url.trim()) {
+      alert("YouTube URLを入力してください");
+      return;
+    }
+
+    // YouTubeへ遷移する直前に、最新のセット・重量・回数等を同期保存する。
+    localStorage.setItem(LS_KEY, JSON.stringify(latestStateRef.current));
+
+    const targetUrl = buildVideoUrl(video);
+    if (!targetUrl) return;
+
+    const link = document.createElement("a");
+    link.href = targetUrl;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const updateRunMeters = (value: number) => {
-    setRunMeters(value);
-    persistNow({ runMeters: value });
+    const nextValue = Math.max(0, value);
+    setRunMeters(nextValue);
+    persistNow({ runMeters: nextValue });
   };
 
   const resetToday = () => {
-    setExercises((prev) => resetSessionFields(prev));
+    const nextExercises = resetAllSessionFields(latestStateRef.current.exercises);
+    const today = getTodayJST();
+
+    setExercises(nextExercises);
     setRunMeters(0);
-    setTodayDate(getTodayJST());
+    setTodayDate(today);
+
+    persistNow({
+      exercises: nextExercises,
+      runMeters: 0,
+      todayDate: today,
+    });
   };
 
   const commitToday = () => {
@@ -841,74 +981,80 @@ export default function App() {
       return;
     }
 
-    const oldLevel = computeLevel(totalXP).level;
-    const nextTotalXP = totalXP + calc.finalXP;
+    const snapshot = latestStateRef.current;
+    const committedPattern = snapshot.currentPattern;
+    const oldLevel = computeLevel(snapshot.totalXP).level;
+    const nextTotalXP = snapshot.totalXP + calc.finalXP;
     const newLevel = computeLevel(nextTotalXP).level;
-    const committedPattern = currentPattern;
+    const today = getTodayJST();
 
-    const memo = `フォーム倍率×${calc.formMultiplier.toFixed(1)} / 筋トレ${pretty(calc.strengthAfterForm)}XP / ラン${pretty(calc.runXP)}XP`;
+    const nextExercises = snapshot.exercises.map((exercise) => {
+      if (exercise.pattern !== committedPattern) return exercise;
 
-    setTotalXP(nextTotalXP);
-    setNotes((arr) => [
+      const performed = exercise.sets.some((set) => set.done);
+      const nextMemo =
+        performed && exercise.formMemoDraft.trim()
+          ? exercise.formMemoDraft.trim()
+          : exercise.lastFormMemo;
+
+      return {
+        ...exercise,
+        lastFormMemo: nextMemo,
+        formMemoDraft: "",
+        sets: exercise.sets.map((set) => ({ ...set, done: false })),
+      };
+    });
+
+    const nextNotes: Note[] = [
       {
-        date: todayDate,
+        date: snapshot.todayDate || today,
         xp: calc.finalXP,
-        memo,
+        memo: `筋トレ${pretty(calc.strengthXP)}XP / ラン${pretty(calc.runXP)}XP`,
         pattern: committedPattern,
       },
-      ...arr,
-    ]);
+      ...snapshot.notes,
+    ];
 
-    setLastPattern(committedPattern);
-    setCurrentPattern(committedPattern === "A" ? "B" : "A");
+    const nextPattern = oppositePattern(committedPattern);
 
-    setExercises((prev) =>
-      prev.map((exercise) => {
-        const performed = exercise.sets.some((set) => set.done);
-        return {
-          ...exercise,
-          lastFormMemo:
-            performed && exercise.formMemoDraft.trim()
-              ? exercise.formMemoDraft.trim()
-              : exercise.lastFormMemo,
-          formMemoDraft: "",
-          sets: exercise.sets.map((set) => ({ ...set, done: false })),
-          formChecks: exercise.formChecks.map((check) => ({
-            ...check,
-            checked: false,
-          })),
-        };
-      })
-    );
+    const nextState: SavedState = {
+      version: 6,
+      totalXP: nextTotalXP,
+      notes: nextNotes,
+      todayDate: today,
+      exercises: nextExercises,
+      runMeters: 0,
+      currentPattern: nextPattern,
+      lastPattern: committedPattern,
+    };
 
-    setRunMeters(0);
-    setTodayDate(getTodayJST());
+    // XP確定はState更新より先に完成状態をlocalStorageへ一括保存する。
+    writeState(nextState);
+
+    setTotalXP(nextState.totalXP);
+    setNotes(nextState.notes);
+    setTodayDate(nextState.todayDate);
+    setExercises(nextState.exercises);
+    setRunMeters(nextState.runMeters);
+    setCurrentPattern(nextState.currentPattern);
+    setLastPattern(nextState.lastPattern);
+
     setCelebration({
       xp: calc.finalXP,
       oldLevel,
       newLevel,
-      perfect: calc.perfectForm,
     });
   };
 
   const exportJSON = () => {
-    const payload: SavedState = {
-      version: 5,
-      totalXP,
-      notes,
-      todayDate,
-      exercises,
-      runMeters,
-      currentPattern,
-      lastPattern,
-    };
+    const payload = latestStateRef.current;
     const blob = new Blob([JSON.stringify(payload, null, 2)], {
       type: "application/json",
     });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `xp-backup-${todayDate}.json`;
+    a.download = `xp-backup-${getTodayJST()}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -917,22 +1063,17 @@ export default function App() {
     const input = document.createElement("input");
     input.type = "file";
     input.accept = "application/json";
+
     input.onchange = () => {
       const file = input.files?.[0];
       if (!file) return;
+
       const reader = new FileReader();
       reader.onload = () => {
         try {
-          const obj = JSON.parse(String(reader.result)) as LegacySavedState;
-          if (typeof obj.totalXP === "number") setTotalXP(obj.totalXP);
-          if (Array.isArray(obj.notes)) setNotes(obj.notes);
-          if (typeof obj.todayDate === "string") setTodayDate(obj.todayDate);
-          setExercises(migrateExercises(obj.exercises));
-          if (typeof obj.runMeters === "number") setRunMeters(obj.runMeters);
-          if (isPattern(obj.currentPattern)) setCurrentPattern(obj.currentPattern);
-          if (obj.lastPattern === null || isPattern(obj.lastPattern)) {
-            setLastPattern(obj.lastPattern ?? null);
-          }
+          const raw = JSON.parse(String(reader.result)) as LegacySavedState;
+          const restored = buildStateFromRaw(raw);
+          applySavedState(restored);
           alert("復元しました");
         } catch {
           alert("JSONの形式が不正です");
@@ -940,21 +1081,43 @@ export default function App() {
       };
       reader.readAsText(file);
     };
+
     input.click();
   };
 
   const hardReset = () => {
     if (!confirm("全データを初期状態へ戻しますか？")) return;
-    setTotalXP(INITIAL_TOTAL_XP);
-    setNotes([]);
-    setTodayDate(getTodayJST());
-    setExercises(createInitialExercises());
-    setRunMeters(0);
-    setCurrentPattern("A");
-    setLastPattern(null);
-    setOpenForms({});
-    setEditingForms({});
+
+    const nextState: SavedState = {
+      version: 6,
+      totalXP: INITIAL_TOTAL_XP,
+      notes: [],
+      todayDate: getTodayJST(),
+      exercises: createInitialExercises(),
+      runMeters: 0,
+      currentPattern: "A",
+      lastPattern: null,
+    };
+
+    writeState(nextState);
+    setTotalXP(nextState.totalXP);
+    setNotes(nextState.notes);
+    setTodayDate(nextState.todayDate);
+    setExercises(nextState.exercises);
+    setRunMeters(nextState.runMeters);
+    setCurrentPattern(nextState.currentPattern);
+    setLastPattern(nextState.lastPattern);
+    setOpenVideoManagers({});
+    setCelebration(null);
   };
+
+  if (!loaded) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center text-gray-600">
+        読み込み中...
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900 p-4 md:p-8">
@@ -1039,7 +1202,7 @@ export default function App() {
             <input
               type="date"
               value={todayDate}
-              onChange={(event) => setTodayDate(event.target.value)}
+              onChange={(event) => handleDateChange(event.target.value)}
               className="border rounded-lg px-3 py-2 h-11 text-base bg-white text-black"
             />
           </div>
@@ -1080,21 +1243,10 @@ export default function App() {
             </div>
           </div>
 
-          <div
-            className={`rounded-xl p-4 border ${
-              calc.formMultiplier === 1
-                ? "bg-green-50 border-green-200"
-                : "bg-amber-50 border-amber-200"
-            }`}
-          >
-            <div className="font-bold">
-              {calc.perfectForm ? "PERFECT FORM" : calc.performedCount > 0 ? "GOOD FORM" : "FORM CHECK"}
-            </div>
-            <div className="text-sm mt-1">
-              現在のフォーム倍率：×{calc.formMultiplier.toFixed(1)}
-              {calc.performedCount > 0 && calc.formMultiplier < 1
-                ? "（実施種目に未チェックがあります）"
-                : ""}
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <div className="font-bold">フォーム確認は動画から</div>
+            <div className="text-sm mt-1 text-gray-600">
+              各種目の参考動画をワンタップで開けます。動画を開く直前にも入力内容を保存します。
             </div>
           </div>
         </div>
@@ -1103,28 +1255,16 @@ export default function App() {
         <div className="rounded-2xl bg-white shadow p-5 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold">{currentPattern}メニューの種目</h2>
-            <span className="text-sm text-gray-500">
-              {visibleExercises.length}種目
-            </span>
+            <span className="text-sm text-gray-500">{visibleExercises.length}種目</span>
           </div>
 
           {visibleExercises.map(({ exercise, originalIndex }) => {
-            const checkedCount = exercise.formChecks.filter(
-              (check) => check.checked
-            ).length;
-            const performed = exercise.sets.some((set) => set.done);
-            const formComplete =
-              exercise.formChecks.length === 0 ||
-              checkedCount === exercise.formChecks.length;
-            const formOpen = Boolean(openForms[exercise.key]);
-            const editingForm = Boolean(editingForms[exercise.key]);
+            const videoManagerOpen = Boolean(openVideoManagers[exercise.key]);
 
             return (
               <div
                 key={exercise.key}
-                className={`rounded-2xl border bg-white p-4 space-y-3 ${
-                  performed && !formComplete ? "border-amber-300" : ""
-                }`}
+                className="rounded-2xl border bg-white p-4 space-y-4"
               >
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                   <div className="flex-1">
@@ -1198,6 +1338,7 @@ export default function App() {
 
                     <input
                       type="number"
+                      min={0}
                       value={set.weight}
                       onChange={(event) =>
                         updateSetField(
@@ -1212,6 +1353,7 @@ export default function App() {
 
                     <input
                       type="number"
+                      min={0}
                       value={set.reps}
                       onChange={(event) =>
                         updateSetField(
@@ -1243,84 +1385,180 @@ export default function App() {
                   </div>
                 ))}
 
-                <div className="rounded-xl border bg-gray-50 overflow-hidden">
-                  <button
-                    onClick={() =>
-                      setOpenForms((prev) => ({
-                        ...prev,
-                        [exercise.key]: !prev[exercise.key],
-                      }))
-                    }
-                    className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left"
-                  >
+                {/* Quick form videos */}
+                <div className="rounded-xl border bg-gray-50 p-4 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                     <div>
-                      <div className="font-semibold">
-                        フォーム確認 {checkedCount}/{exercise.formChecks.length}
-                      </div>
+                      <div className="font-semibold">フォーム参考動画</div>
                       <div className="text-xs text-gray-500 mt-0.5">
-                        実施種目は全チェックでXP×1.0、未チェックありで×0.8
+                        登録数：{exercise.formVideos.length}件
                       </div>
                     </div>
-                    <span className="text-lg">{formOpen ? "▲" : "▼"}</span>
-                  </button>
+                    <button
+                      onClick={() =>
+                        setOpenVideoManagers((prev) => ({
+                          ...prev,
+                          [exercise.key]: !prev[exercise.key],
+                        }))
+                      }
+                      className="px-3 py-2 rounded-lg bg-white border hover:bg-gray-100 text-sm"
+                    >
+                      {videoManagerOpen ? "動画・メモ編集を閉じる" : "動画・メモを編集"}
+                    </button>
+                  </div>
 
-                  {formOpen && (
-                    <div className="border-t px-4 py-4 space-y-3 bg-white">
-                      {exercise.formChecks.length === 0 && !editingForm && (
-                        <div className="text-sm text-gray-500">
-                          フォーム項目は未登録です。必要に応じて編集から追加できます。
-                        </div>
-                      )}
+                  {exercise.formVideos.length === 0 ? (
+                    <div className="text-sm text-gray-500">
+                      参考動画はまだ未登録です。「動画・メモを編集」から追加できます。
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {exercise.formVideos.map((video) => (
+                        <button
+                          key={video.id}
+                          onClick={() => openFormVideo(video)}
+                          className="rounded-xl bg-red-50 border border-red-100 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 text-left"
+                        >
+                          ▶ {video.title}
+                          {video.startSeconds > 0 && (
+                            <span className="ml-2 text-xs font-normal text-red-600">
+                              {formatStartTime(video.startSeconds)}〜
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
 
-                      {exercise.formChecks.map((check) => (
-                        <div key={check.id} className="flex items-start gap-3">
-                          <input
-                            type="checkbox"
-                            checked={check.checked}
-                            onChange={() =>
-                              toggleFormCheck(originalIndex, check.id)
-                            }
-                            className="mt-1 h-5 w-5 shrink-0"
-                          />
-
-                          {editingForm ? (
-                            <>
+                  {videoManagerOpen && (
+                    <div className="border-t pt-4 space-y-4">
+                      {exercise.formVideos.map((video, videoIndex) => (
+                        <div
+                          key={video.id}
+                          className="rounded-xl border bg-white p-3 space-y-3"
+                        >
+                          <div className="grid md:grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-600 mb-1">
+                                動画名
+                              </label>
                               <input
-                                value={check.label}
+                                value={video.title}
                                 onChange={(event) =>
-                                  updateFormCheckLabel(
+                                  updateFormVideo(originalIndex, video.id, {
+                                    title: event.target.value,
+                                  })
+                                }
+                                className="w-full border rounded-lg px-3 py-2 bg-white text-black"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-600 mb-1">
+                                YouTube URL
+                              </label>
+                              <input
+                                value={video.url}
+                                onChange={(event) =>
+                                  updateFormVideo(originalIndex, video.id, {
+                                    url: event.target.value,
+                                  })
+                                }
+                                placeholder="https://youtube.com/..."
+                                className="w-full border rounded-lg px-3 py-2 bg-white text-black"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap items-end gap-2">
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-600 mb-1">
+                                開始位置・分
+                              </label>
+                              <input
+                                type="number"
+                                min={0}
+                                value={Math.floor(video.startSeconds / 60)}
+                                onChange={(event) =>
+                                  updateVideoTimePart(
                                     originalIndex,
-                                    check.id,
-                                    event.target.value
+                                    video,
+                                    "minutes",
+                                    Number(event.target.value || 0)
                                   )
                                 }
-                                className="flex-1 border rounded-lg px-3 py-2 bg-white text-black"
+                                className="w-24 border rounded-lg px-3 py-2 bg-white text-black text-right"
                               />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-600 mb-1">
+                                秒
+                              </label>
+                              <input
+                                type="number"
+                                min={0}
+                                max={59}
+                                value={video.startSeconds % 60}
+                                onChange={(event) =>
+                                  updateVideoTimePart(
+                                    originalIndex,
+                                    video,
+                                    "seconds",
+                                    Number(event.target.value || 0)
+                                  )
+                                }
+                                className="w-20 border rounded-lg px-3 py-2 bg-white text-black text-right"
+                              />
+                            </div>
+
+                            <button
+                              onClick={() => openFormVideo(video)}
+                              className="px-3 py-2 rounded-lg bg-red-600 text-white text-sm font-semibold hover:bg-red-700"
+                            >
+                              ▶ {formatStartTime(video.startSeconds)}から確認
+                            </button>
+
+                            <div className="flex gap-1 ml-auto">
+                              <button
+                                disabled={videoIndex === 0}
+                                onClick={() =>
+                                  moveFormVideo(originalIndex, video.id, -1)
+                                }
+                                className="px-3 py-2 rounded-lg bg-gray-100 text-sm disabled:opacity-40"
+                              >
+                                ↑
+                              </button>
+                              <button
+                                disabled={videoIndex === exercise.formVideos.length - 1}
+                                onClick={() =>
+                                  moveFormVideo(originalIndex, video.id, 1)
+                                }
+                                className="px-3 py-2 rounded-lg bg-gray-100 text-sm disabled:opacity-40"
+                              >
+                                ↓
+                              </button>
                               <button
                                 onClick={() =>
-                                  removeFormCheck(originalIndex, check.id)
+                                  removeFormVideo(originalIndex, video.id)
                                 }
                                 className="px-3 py-2 rounded-lg bg-red-50 text-red-700 text-sm"
                               >
                                 削除
                               </button>
-                            </>
-                          ) : (
-                            <span className="text-sm leading-6">{check.label}</span>
-                          )}
+                            </div>
+                          </div>
                         </div>
                       ))}
 
-                      {editingForm && (
-                        <button
-                          onClick={() => addFormCheck(originalIndex)}
-                          className="px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-sm"
-                        >
-                          ＋フォーム項目
-                        </button>
-                      )}
+                      <button
+                        onClick={() => addFormVideo(originalIndex)}
+                        className="px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-sm"
+                      >
+                        ＋参考動画を追加
+                      </button>
 
-                      <div className="pt-2">
+                      <div>
                         <label className="block text-sm font-semibold mb-1">
                           今日のフォームメモ
                         </label>
@@ -1329,23 +1567,14 @@ export default function App() {
                           onChange={(event) =>
                             updateFormMemoDraft(originalIndex, event.target.value)
                           }
-                          placeholder="例：肩がすくみやすい。次回は重量を1段下げる"
+                          placeholder="例：肩をすくめない。次回は肘の軌道を動画と比較する"
                           rows={2}
                           className="w-full border rounded-lg px-3 py-2 bg-white text-black"
                         />
+                        <div className="text-xs text-gray-500 mt-1">
+                          この種目を実施してXP保存した時、入力内容を「前回のフォームメモ」として残します。
+                        </div>
                       </div>
-
-                      <button
-                        onClick={() =>
-                          setEditingForms((prev) => ({
-                            ...prev,
-                            [exercise.key]: !prev[exercise.key],
-                          }))
-                        }
-                        className="px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-sm"
-                      >
-                        {editingForm ? "編集を終了" : "フォーム項目を編集"}
-                      </button>
                     </div>
                   )}
                 </div>
@@ -1367,14 +1596,12 @@ export default function App() {
         <div className="rounded-2xl bg-white shadow p-5 space-y-4">
           <div className="space-y-2">
             <div className="font-semibold">ラントレ距離（m）＝XP</div>
-            <div className="text-sm text-gray-500">
-              ランXPはフォーム倍率の対象外です
-            </div>
             <input
               type="number"
+              min={0}
               value={runMeters}
               onChange={(event) =>
-                setRunMeters(Number(event.target.value || 0))
+                updateRunMeters(Number(event.target.value || 0))
               }
               placeholder="例：2000"
               className="border rounded-lg px-3 py-2 h-11 text-base w-40 bg-white text-black"
@@ -1386,16 +1613,8 @@ export default function App() {
               <div className="font-semibold">本日のXP内訳</div>
               <div className="mt-2 space-y-1 text-sm">
                 <div className="flex justify-between gap-4">
-                  <span>筋トレ素点</span>
+                  <span>{currentPattern}メニュー筋トレXP</span>
                   <span>{pretty(calc.strengthXP)} XP</span>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <span>フォーム倍率</span>
-                  <span>×{calc.formMultiplier.toFixed(1)}</span>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <span>倍率適用後</span>
-                  <span>{pretty(calc.strengthAfterForm)} XP</span>
                 </div>
                 <div className="flex justify-between gap-4">
                   <span>ランXP</span>
@@ -1433,7 +1652,10 @@ export default function App() {
           ) : (
             <div className="space-y-2">
               {notes.map((note, index) => (
-                <div key={`${note.date}-${index}`} className="border rounded-xl p-3 bg-gray-50">
+                <div
+                  key={`${note.date}-${index}`}
+                  className="border rounded-xl p-3 bg-gray-50"
+                >
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-sm opacity-70">{note.date}</div>
                     {note.pattern && (
@@ -1451,13 +1673,11 @@ export default function App() {
         </div>
       </div>
 
-      {/* mobile fixed bar */}
+      {/* Mobile fixed bar */}
       <div className="md:hidden fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur border-t p-3 z-40">
         <div className="max-w-6xl mx-auto flex items-center gap-3">
           <div className="flex-1">
-            <div className="text-xs text-gray-500">
-              {currentPattern}メニュー・フォーム×{calc.formMultiplier.toFixed(1)}
-            </div>
+            <div className="text-xs text-gray-500">{currentPattern}メニュー</div>
             <div className="text-lg font-bold">{pretty(calc.finalXP)} XP</div>
           </div>
           <button
@@ -1488,11 +1708,6 @@ export default function App() {
             <div className="text-sm font-semibold tracking-widest text-blue-600">
               WORKOUT COMPLETE
             </div>
-            {celebration.perfect && (
-              <div className="mt-3 text-xl font-black text-green-600">
-                PERFECT FORM BONUS!
-              </div>
-            )}
             <div className="mt-4 text-4xl font-black">
               +{pretty(celebration.xp)} XP
             </div>

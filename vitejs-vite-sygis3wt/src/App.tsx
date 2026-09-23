@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { ChangeEvent, MouseEvent } from "react";
+import type { ChangeEvent, MouseEvent, SyntheticEvent } from "react";
 
 /** ========= Types ========= */
 type WorkoutPattern = "A" | "B";
-type ViewMode = "home" | "training" | "exercise";
+type ViewMode = "home" | "training" | "exercise" | "history" | "stats" | "settings";
 
 type SetEntry = {
   weight: number;
@@ -444,6 +444,36 @@ function clampStartSeconds(value: number) {
   return Math.max(0, Math.floor(Number.isFinite(value) ? value : 0));
 }
 
+
+function extractYouTubeId(rawUrl: string) {
+  try {
+    const parsed = new URL(rawUrl);
+    const host = parsed.hostname.replace(/^www\./, "");
+    if (host === "youtu.be") {
+      return parsed.pathname.split("/").filter(Boolean)[0] ?? "";
+    }
+    if (host === "youtube.com" || host.endsWith(".youtube.com")) {
+      if (parsed.pathname === "/watch") {
+        return parsed.searchParams.get("v") ?? "";
+      }
+      if (parsed.pathname.startsWith("/shorts/")) {
+        return parsed.pathname.split("/")[2] ?? "";
+      }
+      if (parsed.pathname.startsWith("/embed/")) {
+        return parsed.pathname.split("/")[2] ?? "";
+      }
+    }
+  } catch {
+    return "";
+  }
+  return "";
+}
+
+function getYouTubeThumbnail(rawUrl: string) {
+  const id = extractYouTubeId(rawUrl);
+  return id ? `https://img.youtube.com/vi/${id}/mqdefault.jpg` : "";
+}
+
 function formatStartTime(totalSeconds: number) {
   const safe = clampStartSeconds(totalSeconds);
   const minutes = Math.floor(safe / 60);
@@ -547,93 +577,50 @@ type MuscleArea =
   | "legs"
   | "generic";
 
-// High-quality anatomy base illustrations from Wikimedia Commons.
-// Front/back artwork: Termininja, CC BY-SA 3.0.
-const ANATOMY_FRONT_URL =
-  "https://upload.wikimedia.org/wikipedia/commons/1/13/Muscular_system.svg";
-const ANATOMY_BACK_URL =
-  "https://upload.wikimedia.org/wikipedia/commons/9/90/Muscular_system-back.svg";
-
-type AnatomyOverlay = {
-  left: number;
-  top: number;
-  width: number;
-  height: number;
-  rotate?: number;
-  radius?: string;
+// Wikimedia Commons / Anatomography / Gray's Anatomy の公開画像を利用。
+// 位置合わせの疑似オーバーレイは廃止し、対象筋が実際に着色された画像を種目ごとに表示する。
+const MUSCLE_ARTWORK: Record<MuscleArea, { url: string; position?: string }> = {
+  chest: {
+    url: "https://commons.wikimedia.org/wiki/Special:Redirect/file/Pectoralis%20major.png",
+    position: "50% 50%",
+  },
+  shoulders: {
+    url: "https://commons.wikimedia.org/wiki/Special:Redirect/file/Deltoid%20muscle%20top6.png",
+    position: "50% 48%",
+  },
+  triceps: {
+    url: "https://commons.wikimedia.org/wiki/Special:Redirect/file/Triceps%20brachii%20muscle06.png",
+    position: "50% 44%",
+  },
+  biceps: {
+    url: "https://commons.wikimedia.org/wiki/Special:Redirect/file/Biceps%20brachii%20muscle01.png",
+    position: "50% 44%",
+  },
+  abs: {
+    url: "https://commons.wikimedia.org/wiki/Special:Redirect/file/202304%20Rectus%20abdominis%20muscle.svg",
+    position: "50% 47%",
+  },
+  lats: {
+    url: "https://commons.wikimedia.org/wiki/Special:Redirect/file/Latissimus%20dorsi%20muscle%20frontal3.png",
+    position: "50% 49%",
+  },
+  midback: {
+    url: "https://commons.wikimedia.org/wiki/Special:Redirect/file/Trapezius%20back.png",
+    position: "50% 45%",
+  },
+  legs: {
+    url: "https://commons.wikimedia.org/wiki/Special:Redirect/file/202304%20Quadriceps%20femoris%20muscle.svg",
+    position: "50% 45%",
+  },
+  generic: {
+    url: "https://commons.wikimedia.org/wiki/Special:Redirect/file/Muscles%20front%20and%20back.svg",
+    position: "50% 50%",
+  },
 };
 
-function getAnatomyOverlays(area: MuscleArea): {
-  view: "front" | "back";
-  overlays: AnatomyOverlay[];
-} {
-  switch (area) {
-    case "chest":
-      return {
-        view: "front",
-        overlays: [
-          { left: 38, top: 24.5, width: 12.5, height: 10, rotate: -5, radius: "48% 52% 48% 52%" },
-          { left: 49.5, top: 24.5, width: 12.5, height: 10, rotate: 5, radius: "52% 48% 52% 48%" },
-        ],
-      };
-    case "shoulders":
-      return {
-        view: "front",
-        overlays: [
-          { left: 28.5, top: 22.5, width: 10, height: 9, rotate: -14, radius: "50%" },
-          { left: 61.5, top: 22.5, width: 10, height: 9, rotate: 14, radius: "50%" },
-        ],
-      };
-    case "triceps":
-      return {
-        view: "back",
-        overlays: [
-          { left: 27, top: 33, width: 8, height: 18, rotate: 8, radius: "45%" },
-          { left: 65, top: 33, width: 8, height: 18, rotate: -8, radius: "45%" },
-        ],
-      };
-    case "biceps":
-      return {
-        view: "front",
-        overlays: [
-          { left: 27, top: 32.5, width: 8.5, height: 16, rotate: -7, radius: "45%" },
-          { left: 64.5, top: 32.5, width: 8.5, height: 16, rotate: 7, radius: "45%" },
-        ],
-      };
-    case "abs":
-      return {
-        view: "front",
-        overlays: [
-          { left: 43, top: 36, width: 14, height: 27, radius: "38%" },
-        ],
-      };
-    case "lats":
-      return {
-        view: "back",
-        overlays: [
-          { left: 31.5, top: 31, width: 15, height: 26, rotate: -6, radius: "45% 30% 55% 45%" },
-          { left: 53.5, top: 31, width: 15, height: 26, rotate: 6, radius: "30% 45% 45% 55%" },
-        ],
-      };
-    case "midback":
-      return {
-        view: "back",
-        overlays: [
-          { left: 39, top: 23.5, width: 22, height: 21, radius: "42%" },
-        ],
-      };
-    case "legs":
-      return {
-        view: "front",
-        overlays: [
-          { left: 35, top: 61, width: 13.5, height: 29, rotate: 2, radius: "45%" },
-          { left: 51.5, top: 61, width: 13.5, height: 29, rotate: -2, radius: "45%" },
-        ],
-      };
-    default:
-      return { view: "front", overlays: [] };
-  }
-}
+const EVEREST_ART_URL =
+  "https://commons.wikimedia.org/wiki/Special:Redirect/file/Mount%20Everest%20as%20seen%20from%20Drukair2%20PLW%20edit.jpg";
+
 
 function getMuscleArea(exercise: ExerciseTemplate): MuscleArea {
   const key = exercise.key.toLowerCase();
@@ -662,42 +649,37 @@ function MuscleMap({
   size?: "sm" | "lg";
 }) {
   const area = getMuscleArea(exercise);
-  const config = getAnatomyOverlays(area);
+  const artwork = MUSCLE_ARTWORK[area];
   const large = size === "lg";
 
   return (
     <figure
-      className={`relative shrink-0 overflow-hidden ${
+      className={`relative shrink-0 overflow-hidden bg-gradient-to-b from-slate-50 to-white ${
         large
-          ? "h-[176px] w-[126px] rounded-[28px] bg-gradient-to-b from-slate-50 to-white"
-          : "h-[72px] w-[52px] rounded-2xl bg-slate-50"
+          ? "h-[168px] w-[132px] rounded-[26px]"
+          : "h-[74px] w-[58px] rounded-2xl"
       }`}
       aria-label={`${exercise.name}で主に鍛える部位`}
     >
       <img
-        src={config.view === "back" ? ANATOMY_BACK_URL : ANATOMY_FRONT_URL}
-        alt=""
+        src={artwork.url}
+        alt={`${exercise.name}で主に鍛える部位`}
         draggable={false}
-        className="absolute inset-0 h-full w-full select-none object-contain object-top opacity-[0.42] grayscale saturate-0"
-        style={{ filter: "grayscale(1) saturate(0) contrast(.82) brightness(1.18)" }}
+        loading={large ? "eager" : "lazy"}
+        referrerPolicy="no-referrer"
+        onError={(event: SyntheticEvent<HTMLImageElement>) => {
+          event.currentTarget.style.display = "none";
+        }}
+        className="h-full w-full select-none object-contain"
+        style={{
+          objectPosition: artwork.position ?? "center",
+          filter:
+            area === "generic"
+              ? "grayscale(1) contrast(.9) brightness(1.08)"
+              : "hue-rotate(185deg) saturate(1.05) contrast(.94) brightness(1.06)",
+          transform: large ? "scale(1.06)" : "scale(1.12)",
+        }}
       />
-
-      {config.overlays.map((overlay, index) => (
-        <span
-          key={`${area}-${index}`}
-          className="absolute bg-sky-500/80 shadow-[0_0_18px_rgba(14,165,233,.22)] mix-blend-multiply"
-          style={{
-            left: `${overlay.left}%`,
-            top: `${overlay.top}%`,
-            width: `${overlay.width}%`,
-            height: `${overlay.height}%`,
-            transform: `rotate(${overlay.rotate ?? 0}deg)`,
-            borderRadius: overlay.radius ?? "45%",
-          }}
-        />
-      ))}
-
-      <span className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-white via-white/80 to-transparent" />
     </figure>
   );
 }
@@ -758,6 +740,18 @@ export default function App() {
   const [viewMode, setViewMode] = useState<ViewMode>("home");
   const [selectedExerciseKey, setSelectedExerciseKey] = useState<string | null>(null);
   const [detailEditMode, setDetailEditMode] = useState(false);
+  const [toast, setToast] = useState<{
+    message: string;
+    tone: "success" | "error" | "info";
+  } | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{
+    title: string;
+    message: string;
+    confirmLabel: string;
+    tone: "danger" | "default";
+    onConfirm: () => void;
+  } | null>(null);
+  const historyReadyRef = useRef(false);
   const [celebration, setCelebration] = useState<{
     xp: number;
     oldLevel: number;
@@ -801,6 +795,48 @@ export default function App() {
     setLastPattern(state.lastPattern);
     writeState(state);
   };
+
+  // PWA/ブラウザの戻るジェスチャーを、アプリ内の画面遷移として扱う。
+  useEffect(() => {
+    if (!loaded || historyReadyRef.current) return;
+
+    historyReadyRef.current = true;
+    window.history.replaceState(
+      { forgeView: "home", exerciseKey: null },
+      "",
+      window.location.href
+    );
+
+    const handlePopState = (event: PopStateEvent) => {
+      const state = (event.state ?? {}) as {
+        forgeView?: ViewMode;
+        exerciseKey?: string | null;
+      };
+      const nextView = state.forgeView ?? "home";
+      setViewMode(nextView);
+      setSelectedExerciseKey(
+        nextView === "exercise" ? state.exerciseKey ?? null : null
+      );
+      setDetailEditMode(false);
+      if (nextView !== "training") {
+        setOpenExerciseKey(null);
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [loaded]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(null), 2600);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
+
+  const notify = (
+    message: string,
+    tone: "success" | "error" | "info" = "info"
+  ) => setToast({ message, tone });
 
   // Chrome/Google Translateによるブランド名・種目名の意図しない翻訳を抑止。
   useEffect(() => {
@@ -971,6 +1007,7 @@ export default function App() {
   };
 
   const toggleSetDone = (exIdx: number, setIdx: number) => {
+    if ("vibrate" in navigator) navigator.vibrate(12);
     updateExercisesAndPersist((prev) =>
       prev.map((exercise, index) =>
         index === exIdx
@@ -1040,23 +1077,31 @@ export default function App() {
       (exercise) => exercise.key === exerciseKey
     );
 
-    // 標準種目は削除不可。自由追加種目のみ削除できる。
     if (!target || target.isBase) return;
 
-    if (!confirm(`「${target.name}」を削除しますか？`)) return;
+    setConfirmAction({
+      title: "種目を削除",
+      message: `「${target.name}」と、セット・動画・メモを削除します。`,
+      confirmLabel: "削除する",
+      tone: "danger",
+      onConfirm: () => {
+        const nextExercises = latestStateRef.current.exercises.filter(
+          (exercise) => exercise.key !== exerciseKey
+        );
 
-    const nextExercises = latestStateRef.current.exercises.filter(
-      (exercise) => exercise.key !== exerciseKey
-    );
+        setExercises(nextExercises);
+        persistNow({ exercises: nextExercises });
 
-    setExercises(nextExercises);
-    persistNow({ exercises: nextExercises });
+        if (selectedExerciseKey === exerciseKey) {
+          setSelectedExerciseKey(null);
+          setDetailEditMode(false);
+          setViewMode("training");
+        }
 
-    if (selectedExerciseKey === exerciseKey) {
-      setSelectedExerciseKey(null);
-      setDetailEditMode(false);
-      setViewMode("training");
-    }
+        setConfirmAction(null);
+        notify("種目を削除しました", "success");
+      },
+    });
   };
 
   const updateExerciseName = (exIdx: number, name: string) => {
@@ -1204,7 +1249,7 @@ export default function App() {
 
   const openFormVideo = (video: FormVideo) => {
     if (!video.url.trim()) {
-      alert("YouTube URLを入力してください");
+      notify("YouTube URLを入力してください", "error");
       return;
     }
 
@@ -1254,7 +1299,7 @@ export default function App() {
     );
 
     if (snapshotCalc.finalXP <= 0) {
-      alert("完了したセット、またはラン距離を入力してください");
+      notify("セット完了、またはラン距離を入力してください", "info");
       return;
     }
 
@@ -1317,6 +1362,13 @@ export default function App() {
     setSelectedExerciseKey(null);
     setDetailEditMode(false);
     setViewMode("home");
+    if (historyReadyRef.current) {
+      window.history.replaceState(
+        { forgeView: "home", exerciseKey: null },
+        "",
+        window.location.href
+      );
+    }
 
     setCelebration({
       xp: snapshotCalc.finalXP,
@@ -1336,6 +1388,7 @@ export default function App() {
     a.download = `xp-backup-${getTodayJST()}.json`;
     a.click();
     URL.revokeObjectURL(url);
+    notify("バックアップを書き出しました", "success");
   };
 
   const importJSON = () => {
@@ -1353,9 +1406,9 @@ export default function App() {
           const raw = JSON.parse(String(reader.result)) as LegacySavedState;
           const restored = buildStateFromRaw(raw);
           applySavedState(restored);
-          alert("復元しました");
+          notify("バックアップを復元しました", "success");
         } catch {
-          alert("JSONの形式が不正です");
+          notify("バックアップファイルを確認してください", "error");
         }
       };
       reader.readAsText(file);
@@ -1364,9 +1417,7 @@ export default function App() {
     input.click();
   };
 
-  const hardReset = () => {
-    if (!confirm("全データを初期状態へ戻しますか？")) return;
-
+  const performHardReset = () => {
     const nextState: SavedState = {
       version: 7,
       totalXP: INITIAL_TOTAL_XP,
@@ -1390,7 +1441,27 @@ export default function App() {
     setSelectedExerciseKey(null);
     setDetailEditMode(false);
     setViewMode("home");
+    if (historyReadyRef.current) {
+      window.history.replaceState(
+        { forgeView: "home", exerciseKey: null },
+        "",
+        window.location.href
+      );
+    }
     setCelebration(null);
+    setConfirmAction(null);
+    notify("初期状態に戻しました", "success");
+  };
+
+  const hardReset = () => {
+    setConfirmAction({
+      title: "全データをリセット",
+      message:
+        "累計XP、履歴、種目設定、動画、メモを初期状態へ戻します。この操作は元に戻せません。",
+      confirmLabel: "リセットする",
+      tone: "danger",
+      onConfirm: performHardReset,
+    });
   };
 
   if (!loaded) {
@@ -1423,92 +1494,112 @@ export default function App() {
           .map((exercise, originalIndex) => ({ exercise, originalIndex }))
           .find(({ exercise }) => exercise.key === selectedExerciseKey) ?? null;
 
-  const openExerciseDetail = (exerciseKey: string) => {
-    setSelectedExerciseKey(exerciseKey);
+  const pushView = (view: ViewMode, exerciseKey: string | null = null) => {
+    window.history.pushState(
+      { forgeView: view, exerciseKey },
+      "",
+      window.location.href
+    );
+    setViewMode(view);
+    setSelectedExerciseKey(view === "exercise" ? exerciseKey : null);
     setDetailEditMode(false);
-    setViewMode("exercise");
+  };
+
+  const openExerciseDetail = (exerciseKey: string) => {
+    pushView("exercise", exerciseKey);
   };
 
   const startTraining = () => {
     setOpenExerciseKey(visibleExercises[0]?.exercise.key ?? null);
+    pushView("training");
+  };
+
+  const goBackInApp = () => {
+    window.history.back();
+  };
+
+  const goHomeInApp = () => {
+    window.history.pushState(
+      { forgeView: "home", exerciseKey: null },
+      "",
+      window.location.href
+    );
+    setViewMode("home");
     setSelectedExerciseKey(null);
     setDetailEditMode(false);
-    setViewMode("training");
+    setOpenExerciseKey(null);
   };
 
   const appShell =
     "min-h-screen bg-[radial-gradient(circle_at_top,_#ffffff_0%,_#f4f7fa_38%,_#eef2f6_100%)] text-slate-900 notranslate selection:bg-sky-100";
   const pageWidth = "mx-auto w-full max-w-md";
   const card =
-    "rounded-[28px] border border-white/80 bg-white/95 shadow-[0_18px_50px_rgba(15,23,42,0.075)] backdrop-blur";
+    "rounded-[24px] border border-slate-100/90 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.045)]";
 
-  const BrandHeader = ({ compact = false }: { compact?: boolean }) => (
-    <header
-      className={`${card} flex items-center justify-between ${
-        compact ? "px-4 py-3" : "px-5 py-[18px]"
-      }`}
-    >
-      <div className="text-slate-800">
-        <ForgeLogo compact={compact} />
-      </div>
-      <details className="relative">
-        <summary className="flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-2xl border border-slate-200 bg-white text-lg text-slate-600">
-          ⋯
-        </summary>
-        <div className="absolute right-0 z-[80] mt-2 w-52 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
-          <button
-            onClick={exportJSON}
-            className="w-full rounded-xl px-3 py-2 text-left text-sm hover:bg-slate-50"
-          >
-            バックアップ
-          </button>
-          <button
-            onClick={importJSON}
-            className="w-full rounded-xl px-3 py-2 text-left text-sm hover:bg-slate-50"
-          >
-            復元
-          </button>
-          <button
-            onClick={resetToday}
-            className="w-full rounded-xl px-3 py-2 text-left text-sm hover:bg-slate-50"
-          >
-            今日の入力をリセット
-          </button>
-          <button
-            onClick={hardReset}
-            className="w-full rounded-xl px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
-          >
-            全データをリセット
-          </button>
-          <div className="mt-2 border-t border-slate-100 px-3 pt-3 text-[10px] leading-4 text-slate-400">
-            Anatomy artwork: Termininja / Wikimedia Commons / CC BY-SA 3.0
+  const BrandHeader = () => (
+    <header className="border-b border-slate-100/90 bg-white/95 backdrop-blur-xl">
+      <div
+        className={`${pageWidth} grid h-[72px] grid-cols-[48px_1fr_48px] items-center px-3`}
+      >
+        <button
+          onClick={() => pushView("settings")}
+          className="flex h-10 w-10 items-center justify-center rounded-full text-slate-700 transition active:bg-slate-100"
+          aria-label="設定"
+        >
+          <span className="space-y-[4px]" aria-hidden="true">
+            <span className="block h-[2px] w-[18px] rounded bg-current" />
+            <span className="block h-[2px] w-[18px] rounded bg-current" />
+            <span className="block h-[2px] w-[18px] rounded bg-current" />
+          </span>
+        </button>
+
+        <div className="text-center leading-none">
+          <div className="text-[18px] font-semibold tracking-[0.22em] text-slate-900">
+            FORGE
+          </div>
+          <div className="mt-1.5 text-[9px] uppercase tracking-[0.28em] text-slate-400">
+            Training Log
           </div>
         </div>
-      </details>
+
+        <button
+          onClick={() => pushView("history")}
+          className="justify-self-end flex h-10 w-10 items-center justify-center rounded-full text-slate-700 transition active:bg-slate-100"
+          aria-label="履歴"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            className="h-5 w-5 fill-none stroke-current"
+            strokeWidth="1.8"
+          >
+            <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9Z" />
+            <path d="M10 20h4" />
+          </svg>
+        </button>
+      </div>
     </header>
   );
 
+
   const TopBar = ({
     titleText,
-    onBack,
   }: {
     titleText: string;
-    onBack: () => void;
   }) => (
     <header className="sticky top-0 z-40 border-b border-slate-100 bg-white/95 backdrop-blur">
-      <div className={`${pageWidth} flex h-16 items-center justify-between px-4`}>
+      <div className={`${pageWidth} grid h-16 grid-cols-[48px_1fr_48px] items-center px-2`}>
         <button
-          onClick={onBack}
+          onClick={goBackInApp}
           className="flex h-10 w-10 items-center justify-center rounded-full text-2xl text-slate-700 active:bg-slate-100"
           aria-label="戻る"
         >
           ‹
         </button>
-        <div className="text-base font-semibold tracking-wide text-slate-900">
+        <div className="truncate text-center text-base font-semibold tracking-wide text-slate-900">
           {titleText}
         </div>
         <button
-          onClick={() => setViewMode("home")}
+          onClick={goHomeInApp}
           className="flex h-10 w-10 items-center justify-center rounded-full text-lg text-slate-400 active:bg-slate-100"
           aria-label="ホーム"
         >
@@ -1518,23 +1609,116 @@ export default function App() {
     </header>
   );
 
+  const MobileNav = ({ active }: { active: ViewMode }) => {
+    const items: Array<{
+      view: "home" | "history" | "stats" | "settings";
+      label: string;
+      icon: "home" | "history" | "stats" | "settings";
+    }> = [
+      { view: "home", label: "ホーム", icon: "home" },
+      { view: "history", label: "記録", icon: "history" },
+      { view: "stats", label: "統計", icon: "stats" },
+      { view: "settings", label: "設定", icon: "settings" },
+    ];
+
+    const iconNode = (icon: "home" | "history" | "stats" | "settings") => {
+      if (icon === "home") {
+        return (
+          <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
+            <path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z" />
+          </svg>
+        );
+      }
+      if (icon === "history") {
+        return (
+          <svg
+            viewBox="0 0 24 24"
+            className="h-5 w-5 fill-none stroke-current"
+            strokeWidth="1.8"
+          >
+            <rect x="5" y="4" width="14" height="17" rx="2" />
+            <path d="M8 2v4M16 2v4M8 10h8M8 14h5" />
+          </svg>
+        );
+      }
+      if (icon === "stats") {
+        return (
+          <svg
+            viewBox="0 0 24 24"
+            className="h-5 w-5 fill-none stroke-current"
+            strokeWidth="1.9"
+          >
+            <path d="M5 20V10M12 20V4M19 20v-7" />
+          </svg>
+        );
+      }
+      return (
+        <svg
+          viewBox="0 0 24 24"
+          className="h-5 w-5 fill-none stroke-current"
+          strokeWidth="1.8"
+        >
+          <circle cx="12" cy="12" r="3" />
+          <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21h-4v-.1A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3v-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.1A1.7 1.7 0 0 0 15 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.13.38.35.72.6 1 .3.3.7.5 1.1.5h.1v4h-.1c-.4 0-.8.2-1.1.5-.25.28-.47.62-.6 1Z" />
+        </svg>
+      );
+    };
+
+    return (
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200/70 bg-white/95 px-4 pb-[max(10px,env(safe-area-inset-bottom))] pt-2 shadow-[0_-8px_28px_rgba(15,23,42,0.045)] backdrop-blur-xl">
+        <div className={`${pageWidth} grid grid-cols-4 gap-1`}>
+          {items.map((item) => {
+            const selected = active === item.view;
+            return (
+              <button
+                key={item.view}
+                onClick={() => {
+                  if (item.view === "home") {
+                    goHomeInApp();
+                  } else {
+                    pushView(item.view);
+                  }
+                }}
+                className={`flex flex-col items-center gap-1 rounded-xl py-1.5 transition ${
+                  selected ? "text-sky-500" : "text-slate-400 active:bg-slate-50"
+                }`}
+              >
+                {iconNode(item.icon)}
+                <span
+                  className={`text-[9px] ${
+                    selected ? "font-semibold" : "font-medium"
+                  }`}
+                >
+                  {item.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+    );
+  };
+
   const BottomXPBar = () => (
-    <div className="fixed inset-x-0 bottom-0 z-50 border-t border-slate-700/30 bg-[#172238]/[0.97] px-4 py-3 text-white shadow-[0_-10px_30px_rgba(15,23,42,0.18)] backdrop-blur">
+    <div className="fixed inset-x-0 bottom-0 z-50 border-t border-slate-700/20 bg-[#172238]/[0.985] px-4 py-3 text-white shadow-[0_-12px_32px_rgba(15,23,42,0.2)] backdrop-blur">
       <div className={`${pageWidth} flex items-center gap-3`}>
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-lg text-sky-300">
+          ⚡
+        </span>
         <div className="min-w-0 flex-1">
-          <div className="text-[10px] uppercase tracking-[0.18em] text-slate-400">
-            TODAY'S XP
+          <div className="text-[9px] uppercase tracking-[0.18em] text-slate-400">
+            本日の獲得予定XP
           </div>
-          <div className="mt-0.5 flex items-baseline gap-3">
-            <span className="text-xl font-semibold">{pretty(calc.finalXP)} XP</span>
-            <span className="text-[11px] text-slate-400">
-              筋トレ {pretty(calc.strengthXP)} / ラン {pretty(calc.runXP)}
+          <div className="mt-0.5 flex items-baseline gap-2">
+            <span className="text-[20px] font-semibold">{pretty(calc.finalXP)} XP</span>
+            <span className="truncate text-[10px] text-slate-400">
+              筋トレ {pretty(calc.strengthXP)} ・ ラン {pretty(calc.runXP)}
             </span>
           </div>
         </div>
         <button
           onClick={commitToday}
-          className="rounded-2xl bg-gradient-to-r from-sky-500 to-blue-600 px-5 py-3 text-sm font-semibold shadow-lg shadow-sky-950/20 active:scale-[0.98]"
+          className="rounded-[16px] bg-gradient-to-r from-sky-400 to-blue-600 px-5 py-3 text-sm font-semibold shadow-lg shadow-sky-950/20 transition active:scale-[0.97]"
         >
           保存 →
         </button>
@@ -1546,46 +1730,50 @@ export default function App() {
 
   if (viewMode === "home") {
     screen = (
-      <div className={`${appShell} px-3 pb-8 pt-3`}>
-        <div className={`${pageWidth} space-y-3`}>
-          <BrandHeader />
+      <div className={`${appShell} pb-24`}>
+        <BrandHeader />
+        <div className={`${pageWidth} space-y-3 px-3 pt-3`}>
 
-          <section className={`${card} p-6`}>
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <div className="text-[11px] font-semibold tracking-[0.12em] text-slate-400">
-                  TOTAL EXPERIENCE
-                </div>
-                <div className="mt-1 flex items-end gap-2">
-                  <span className="text-[40px] font-semibold leading-none tracking-[-0.04em] text-slate-950">
-                    {pretty(totalXP)}
-                  </span>
-                  <span className="pb-1 text-lg font-semibold text-slate-500">XP</span>
-                </div>
+          <section id="overview" className={`${card} p-5`}>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1 text-amber-300">
+                <span className="text-[20px]">❧</span>
+                <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                  Lv
+                </span>
+                <span className="text-[30px] font-semibold leading-none text-slate-950">
+                  {lv.level}
+                </span>
+                <span className="scale-x-[-1] text-[20px]">❧</span>
               </div>
-              <div className="text-right">
-                <div className="text-[11px] font-semibold tracking-[0.1em] text-slate-400">
-                  LEVEL
-                </div>
-                <div className="mt-1 text-[34px] font-semibold leading-none text-slate-950">
-                  Lv {lv.level}
-                </div>
-                <div className="mt-2 max-w-[140px] truncate text-xs text-slate-500">
+
+              <div className="min-w-0 flex-1 border-l border-slate-100 pl-3">
+                <div className="truncate text-[15px] font-semibold tracking-[-0.01em] text-slate-800">
                   {title}
+                </div>
+                <div className="mt-1 text-[10px] text-slate-400">
+                  続ける。最強の才能だ。
                 </div>
               </div>
             </div>
 
-            <div className="mt-5">
-              <div className="mb-2 flex items-center justify-between text-xs text-slate-500">
-                <span>次のレベルまで {pretty(Math.max(0, lv.toNext - lv.into))} XP</span>
-                <span>Lv {Math.min(lv.level + 1, LEVEL_NEEDS.length + 1)}</span>
-              </div>
+            <div className="mt-4 flex items-end gap-2">
+              <span className="text-[42px] font-semibold leading-none tracking-[-0.045em] text-slate-950">
+                {pretty(totalXP)}
+              </span>
+              <span className="pb-1 text-lg font-semibold text-slate-700">XP</span>
+            </div>
+
+            <div className="mt-4">
               <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-sky-500 to-blue-600"
+                  className="h-full rounded-full bg-gradient-to-r from-sky-400 via-sky-500 to-blue-600 transition-[width] duration-500"
                   style={{ width: `${levelProgress}%` }}
                 />
+              </div>
+              <div className="mt-2 flex items-center justify-between text-[10px] text-slate-400">
+                <span>次のレベルまで {pretty(Math.max(0, lv.toNext - lv.into))} XP</span>
+                <span>Lv {Math.min(lv.level + 1, LEVEL_NEEDS.length + 1)}</span>
               </div>
             </div>
           </section>
@@ -1593,42 +1781,55 @@ export default function App() {
           <section className="grid grid-cols-2 gap-3">
             <button
               onClick={() => lastPattern && selectPattern(lastPattern)}
-              className={`${card} p-4 text-left active:scale-[0.99]`}
+              className={`${card} group flex items-center gap-3 p-3.5 text-left transition active:scale-[0.985]`}
             >
-              <div className="text-[11px] font-semibold text-slate-400">
-                前回のトレーニング
-              </div>
-              <div className="mt-1 text-base font-semibold">
-                {lastPattern ? `${lastPattern}メニュー` : "記録なし"}
-              </div>
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sky-50 text-sky-500">
+                <svg viewBox="0 0 24 24" className="h-5 w-5 fill-none stroke-current" strokeWidth="1.8">
+                  <path d="M12 7v5l3 2" />
+                  <circle cx="12" cy="12" r="8" />
+                </svg>
+              </span>
+              <span className="min-w-0">
+                <span className="block text-[10px] font-semibold text-slate-400">
+                  前回のトレーニング
+                </span>
+                <span className="mt-0.5 block truncate text-[14px] font-semibold">
+                  {lastPattern ? `${lastPattern}メニュー` : "記録なし"}
+                </span>
+              </span>
             </button>
+
             <button
               onClick={() => selectPattern(recommendedPattern)}
-              className="rounded-[24px] border border-sky-100 bg-gradient-to-br from-white to-sky-50 p-4 text-left shadow-[0_12px_32px_rgba(15,23,42,0.05)] active:scale-[0.99]"
+              className="group flex items-center gap-3 rounded-[24px] border border-sky-100 bg-gradient-to-br from-white to-sky-50 p-3.5 text-left shadow-[0_10px_30px_rgba(15,23,42,0.045)] transition active:scale-[0.985]"
             >
-              <div className="text-[11px] font-semibold text-sky-500">
-                あなたへのおすすめ
-              </div>
-              <div className="mt-1 text-base font-semibold">
-                {recommendedPattern}メニュー
-              </div>
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-sky-500 shadow-sm">
+                ★
+              </span>
+              <span className="min-w-0">
+                <span className="block text-[10px] font-semibold text-sky-500">
+                  あなたへのおすすめ
+                </span>
+                <span className="mt-0.5 block truncate text-[14px] font-semibold">
+                  {recommendedPattern}メニュー
+                </span>
+              </span>
             </button>
           </section>
 
-          <section className={`${card} p-5`}>
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h2 className="text-xl font-semibold">本日のメニュー</h2>
-                <input
-                  type="date"
-                  value={todayDate}
-                  onChange={(event: ChangeEvent<HTMLInputElement>) => handleDateChange(event.target.value)}
-                  className="mt-2 border-0 bg-transparent p-0 text-xs text-slate-400 outline-none"
-                />
-              </div>
-              <div className="max-w-[48%] text-right text-xs leading-5 text-slate-500">
-                “{motivationPhrase}”
-              </div>
+          <section id="today-menu" className={`${card} p-5`}>
+            <div>
+              <h2 className="text-xl font-semibold tracking-[-0.02em]">
+                本日のメニュー
+              </h2>
+              <input
+                type="date"
+                value={todayDate}
+                onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                  handleDateChange(event.target.value)
+                }
+                className="mt-2 border-0 bg-transparent p-0 text-xs text-slate-400 outline-none"
+              />
             </div>
 
             <div className="mt-4 grid grid-cols-2 gap-2">
@@ -1638,10 +1839,10 @@ export default function App() {
                   <button
                     key={pattern}
                     onClick={() => selectPattern(pattern)}
-                    className={`rounded-2xl border px-4 py-3 text-left transition ${
+                    className={`rounded-[18px] border px-4 py-3 text-left transition-all duration-200 active:scale-[0.985] ${
                       selected
-                        ? "border-[#1f2d43] bg-[#1f2d43] text-white shadow-lg shadow-slate-300/40"
-                        : "border-slate-200 bg-slate-50 text-slate-700"
+                        ? "border-sky-500 bg-white text-sky-600 shadow-[0_8px_24px_rgba(14,165,233,0.12)] ring-1 ring-sky-100"
+                        : "border-slate-200 bg-white text-slate-700"
                     }`}
                   >
                     <div className="text-base font-semibold">{pattern}メニュー</div>
@@ -1650,45 +1851,64 @@ export default function App() {
                         selected ? "text-slate-300" : "text-slate-400"
                       }`}
                     >
-                      {pattern === "A" ? "胸・肩・腕" : "背中・腕・体幹・脚"}
+                      {pattern === "A" ? "胸・肩・腕（三頭筋）" : "背中・腕・体幹・脚"}
                     </div>
                   </button>
                 );
               })}
             </div>
 
-            <div className="mt-5 rounded-[22px] bg-gradient-to-br from-slate-50 to-white p-4 ring-1 ring-slate-100">
-              <div className="mb-3 flex items-center justify-between">
-                <div className="text-sm font-semibold text-slate-800">
-                  {currentPattern}メニューの種目
+            <div className="relative mt-4 min-h-[182px] overflow-hidden">
+              <img
+                src={EVEREST_ART_URL}
+                alt=""
+                loading="lazy"
+                referrerPolicy="no-referrer"
+                className="pointer-events-none absolute bottom-[-10px] right-[-18px] h-[145px] w-[190px] object-cover object-center"
+                style={{
+                  opacity: 0.13,
+                  filter: "grayscale(1) contrast(.9) brightness(1.16)",
+                  maskImage: "linear-gradient(to top, black 58%, transparent 100%)",
+                }}
+              />
+
+              <div className="relative z-10 grid grid-cols-[1.08fr_.92fr] gap-2">
+                <div className="pt-1">
+                  <div className="mb-3 text-sm font-semibold text-slate-800">
+                    {currentPattern}メニューの種目
+                  </div>
+                  <div className="space-y-2.5">
+                    {standardVisibleExercises.map(({ exercise }, index) => (
+                      <button
+                        key={exercise.key}
+                        onClick={() => openExerciseDetail(exercise.key)}
+                        className="flex w-full min-w-0 items-center gap-2 text-left transition active:translate-x-0.5"
+                      >
+                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-sky-500 text-[10px] font-semibold text-white">
+                          {index + 1}
+                        </span>
+                        <span className="truncate text-[13px] font-semibold text-slate-700">
+                          {exercise.name}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div className="text-[10px] font-semibold tracking-[0.16em] text-slate-300">
-                  TODAY'S PLAN
+
+                <div className="flex min-h-[168px] flex-col items-end pt-1 text-right">
+                  <div className="text-[36px] font-serif leading-none text-slate-200">“</div>
+                  <div className="-mt-2 max-w-[138px] text-[12px] font-medium leading-[1.8] text-slate-500">
+                    {motivationPhrase}
+                  </div>
                 </div>
-              </div>
-              <div className="grid grid-cols-2 gap-x-3 gap-y-2.5">
-                {standardVisibleExercises.map(({ exercise }, index) => (
-                  <button
-                    key={exercise.key}
-                    onClick={() => openExerciseDetail(exercise.key)}
-                    className="flex min-w-0 items-center gap-2 rounded-xl px-1 py-1 text-left active:bg-white"
-                  >
-                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-sky-400 to-blue-600 text-[10px] font-semibold text-white shadow-sm shadow-sky-200">
-                      {index + 1}
-                    </span>
-                    <span className="truncate text-[13px] font-medium text-slate-700">
-                      {exercise.name}
-                    </span>
-                  </button>
-                ))}
               </div>
             </div>
 
             <div className="mt-5">
               <div className="mb-2 flex items-center justify-between text-sm">
                 <span className="font-semibold text-slate-700">今日の進捗</span>
-                <span className="font-semibold text-slate-600">
-                  {completedBaseExercises}/{currentBaseExercises.length}
+                <span className="font-semibold text-slate-700">
+                  {completedBaseExercises} / {currentBaseExercises.length}
                 </span>
               </div>
               <div className="h-2 overflow-hidden rounded-full bg-slate-100">
@@ -1707,7 +1927,7 @@ export default function App() {
             </button>
           </section>
 
-          <details className={`${card} p-4`}>
+          <details id="recent-sessions" className={`${card} p-4`}>
             <summary className="cursor-pointer list-none text-sm font-semibold text-slate-600">
               最近のセッション
             </summary>
@@ -1730,12 +1950,289 @@ export default function App() {
             </div>
           </details>
         </div>
+
+        <MobileNav active="home" />
+      </div>
+    );
+  } else if (viewMode === "history") {
+    screen = (
+      <div className={`${appShell} pb-24`}>
+        <BrandHeader />
+        <main className={`${pageWidth} px-3 py-4`}>
+          <div className="mb-4">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-sky-500">
+              Training History
+            </div>
+            <h1 className="mt-1 text-[28px] font-semibold tracking-[-0.035em]">
+              記録
+            </h1>
+            <p className="mt-1 text-sm text-slate-400">
+              積み上げたセッションを振り返れます。
+            </p>
+          </div>
+
+          {notes.length === 0 ? (
+            <section className={`${card} p-7 text-center`}>
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-sky-50 text-sky-500">
+                ✓
+              </div>
+              <div className="mt-4 font-semibold">まだ記録はありません</div>
+              <div className="mt-1 text-xs text-slate-400">
+                最初のセッションを保存するとここに表示されます。
+              </div>
+            </section>
+          ) : (
+            <section className={`${card} overflow-hidden`}>
+              {notes.map((note, index) => (
+                <div
+                  key={`${note.date}-${index}-${note.xp}`}
+                  className={`flex items-center gap-3 px-4 py-4 ${
+                    index > 0 ? "border-t border-slate-100" : ""
+                  }`}
+                >
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-500">
+                    {note.pattern ?? "–"}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-semibold">
+                      {note.pattern ? `${note.pattern}メニュー` : "トレーニング"}
+                    </div>
+                    <div className="mt-0.5 truncate text-[11px] text-slate-400">
+                      {note.date} ・ {note.memo}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-semibold text-sky-500">
+                      +{pretty(note.xp)}
+                    </div>
+                    <div className="text-[9px] uppercase tracking-[0.12em] text-slate-400">
+                      XP
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </section>
+          )}
+        </main>
+        <MobileNav active="history" />
+      </div>
+    );
+  } else if (viewMode === "stats") {
+    const sessionCount = notes.length;
+    const totalLoggedXP = notes.reduce((sum, note) => sum + note.xp, 0);
+    const aCount = notes.filter((note) => note.pattern === "A").length;
+    const bCount = notes.filter((note) => note.pattern === "B").length;
+    const recentSeven = notes.slice(0, 7);
+    const maxRecentXP = Math.max(1, ...recentSeven.map((note) => note.xp));
+
+    screen = (
+      <div className={`${appShell} pb-24`}>
+        <BrandHeader />
+        <main className={`${pageWidth} px-3 py-4`}>
+          <div className="mb-4">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-sky-500">
+              Progress
+            </div>
+            <h1 className="mt-1 text-[28px] font-semibold tracking-[-0.035em]">
+              統計
+            </h1>
+            <p className="mt-1 text-sm text-slate-400">
+              続けた量を、数字で確認します。
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <section className={`${card} p-4`}>
+              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                Sessions
+              </div>
+              <div className="mt-2 text-[30px] font-semibold tracking-[-0.04em]">
+                {sessionCount}
+              </div>
+              <div className="mt-1 text-xs text-slate-400">保存済みセッション</div>
+            </section>
+            <section className={`${card} p-4`}>
+              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                Logged XP
+              </div>
+              <div className="mt-2 text-[30px] font-semibold tracking-[-0.04em]">
+                {pretty(totalLoggedXP)}
+              </div>
+              <div className="mt-1 text-xs text-slate-400">履歴上の獲得XP</div>
+            </section>
+          </div>
+
+          <section className={`${card} mt-3 p-5`}>
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm font-semibold">最近7セッション</div>
+                <div className="mt-1 text-[11px] text-slate-400">
+                  獲得XPのボリューム
+                </div>
+              </div>
+              <div className="text-[11px] text-slate-400">
+                A {aCount} / B {bCount}
+              </div>
+            </div>
+
+            <div className="mt-5 flex h-32 items-end gap-2">
+              {recentSeven.length === 0 ? (
+                <div className="m-auto text-xs text-slate-400">
+                  セッションを保存するとグラフが表示されます
+                </div>
+              ) : (
+                [...recentSeven].reverse().map((note, index) => {
+                  const height = Math.max(
+                    12,
+                    Math.round((note.xp / maxRecentXP) * 100)
+                  );
+                  return (
+                    <div
+                      key={`${note.date}-${index}`}
+                      className="flex min-w-0 flex-1 flex-col items-center justify-end gap-2"
+                    >
+                      <div
+                        className="w-full max-w-8 rounded-t-lg bg-gradient-to-t from-blue-600 to-sky-400 shadow-sm"
+                        style={{ height: `${height}%` }}
+                        title={`${pretty(note.xp)} XP`}
+                      />
+                      <span className="text-[9px] font-medium text-slate-400">
+                        {note.pattern ?? "–"}
+                      </span>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </section>
+
+          <section className={`${card} mt-3 p-5`}>
+            <div className="text-sm font-semibold">現在地</div>
+            <div className="mt-4 flex items-end justify-between">
+              <div>
+                <div className="text-[10px] uppercase tracking-[0.14em] text-slate-400">
+                  Total XP
+                </div>
+                <div className="mt-1 text-[30px] font-semibold tracking-[-0.04em]">
+                  {pretty(totalXP)}
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-[10px] uppercase tracking-[0.14em] text-slate-400">
+                  Level
+                </div>
+                <div className="mt-1 text-[28px] font-semibold">Lv {lv.level}</div>
+              </div>
+            </div>
+            <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-sky-400 to-blue-600"
+                style={{ width: `${levelProgress}%` }}
+              />
+            </div>
+          </section>
+        </main>
+        <MobileNav active="stats" />
+      </div>
+    );
+  } else if (viewMode === "settings") {
+    screen = (
+      <div className={`${appShell} pb-24`}>
+        <TopBar titleText="設定" />
+        <main className={`${pageWidth} px-3 py-4`}>
+          <section className={`${card} overflow-hidden`}>
+            <div className="px-5 py-4">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                Data
+              </div>
+              <div className="mt-1 text-base font-semibold">バックアップ</div>
+            </div>
+            <button
+              onClick={exportJSON}
+              className="flex w-full items-center justify-between border-t border-slate-100 px-5 py-4 text-left"
+            >
+              <span>
+                <span className="block text-sm font-medium">JSONを書き出す</span>
+                <span className="mt-0.5 block text-[11px] text-slate-400">
+                  XP・履歴・種目・動画設定を保存
+                </span>
+              </span>
+              <span className="text-slate-300">›</span>
+            </button>
+            <button
+              onClick={importJSON}
+              className="flex w-full items-center justify-between border-t border-slate-100 px-5 py-4 text-left"
+            >
+              <span>
+                <span className="block text-sm font-medium">バックアップを復元</span>
+                <span className="mt-0.5 block text-[11px] text-slate-400">
+                  保存済みJSONから復元
+                </span>
+              </span>
+              <span className="text-slate-300">›</span>
+            </button>
+          </section>
+
+          <section className={`${card} mt-3 overflow-hidden`}>
+            <div className="px-5 py-4">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                Session
+              </div>
+              <div className="mt-1 text-base font-semibold">入力管理</div>
+            </div>
+            <button
+              onClick={() => {
+                resetToday();
+                notify("今日の入力をリセットしました", "success");
+              }}
+              className="flex w-full items-center justify-between border-t border-slate-100 px-5 py-4 text-left"
+            >
+              <span>
+                <span className="block text-sm font-medium">今日の入力をリセット</span>
+                <span className="mt-0.5 block text-[11px] text-slate-400">
+                  XP・履歴は維持します
+                </span>
+              </span>
+              <span className="text-slate-300">›</span>
+            </button>
+          </section>
+
+          <section className="mt-3 overflow-hidden rounded-[24px] border border-red-100 bg-white shadow-[0_10px_34px_rgba(15,23,42,0.045)]">
+            <div className="px-5 py-4">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-red-400">
+                Danger Zone
+              </div>
+              <div className="mt-1 text-base font-semibold">全データ</div>
+            </div>
+            <button
+              onClick={hardReset}
+              className="flex w-full items-center justify-between border-t border-red-50 px-5 py-4 text-left"
+            >
+              <span>
+                <span className="block text-sm font-medium text-red-600">
+                  初期状態へ戻す
+                </span>
+                <span className="mt-0.5 block text-[11px] text-slate-400">
+                  この操作は元に戻せません
+                </span>
+              </span>
+              <span className="text-red-300">›</span>
+            </button>
+          </section>
+
+          <div className="mt-5 px-3 text-center text-[9px] leading-5 text-slate-400">
+            FORGE Training Log
+            <br />
+            Muscle artwork: Wikimedia Commons / Anatomography / Gray&apos;s Anatomy
+          </div>
+        </main>
+        <MobileNav active="settings" />
       </div>
     );
   } else if (viewMode === "training") {
     screen = (
       <div className={`${appShell} pb-28`}>
-        <TopBar titleText={`${currentPattern}メニュー`} onBack={() => setViewMode("home")} />
+        <TopBar titleText={`${currentPattern}メニュー`} />
 
         <main className={`${pageWidth} px-3 py-4`}>
           <section className="mb-4">
@@ -1743,10 +2240,11 @@ export default function App() {
               <div className="text-xs text-slate-500">
                 {currentPattern === "A" ? "胸・肩・腕" : "背中・腕・体幹・脚"}を鍛えるメニュー
               </div>
-              <div className="text-lg font-semibold text-slate-800">
+              <div className="text-[17px] font-semibold tracking-[-0.02em] text-slate-800">
                 <span className="text-sky-500">{completedBaseExercises}</span>
                 <span className="text-slate-400"> / </span>
-                {currentBaseExercises.length} 種目完了
+                {currentBaseExercises.length}
+                <span className="ml-1 text-sm font-medium">種目完了</span>
               </div>
             </div>
             <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-slate-200">
@@ -1768,7 +2266,7 @@ export default function App() {
                   key={exercise.key}
                   className={`${card} overflow-hidden transition-shadow duration-200 ${isOpen ? "shadow-[0_20px_55px_rgba(15,23,42,0.10)]" : ""}`}
                 >
-                  <div className="flex items-center gap-3 px-4 py-3.5">
+                  <div className="flex items-center gap-3 px-3.5 py-3">
                     <button
                       onClick={() =>
                         setOpenExerciseKey((prev) =>
@@ -1794,9 +2292,8 @@ export default function App() {
                       onClick={() => openExerciseDetail(exercise.key)}
                       className="flex min-w-0 flex-1 items-center gap-3 text-left"
                     >
-                      <MuscleMap exercise={exercise} />
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-base font-semibold text-slate-900">
+                        <span className="block truncate text-base font-semibold tracking-[-0.01em] text-slate-900">
                           {exercise.name}
                         </span>
                         <span className="mt-1 block text-[11px] text-slate-400">
@@ -1806,6 +2303,7 @@ export default function App() {
                             : "—"}
                         </span>
                       </span>
+                      <MuscleMap exercise={exercise} />
                     </button>
 
                     <button
@@ -1826,7 +2324,7 @@ export default function App() {
                         {exercise.sets.map((set, setIndex) => (
                           <div
                             key={`${exercise.key}-${setIndex}`}
-                            className="grid grid-cols-[52px_1fr_1fr_auto] items-center gap-2 rounded-xl px-3 py-2.5 even:bg-slate-50/80"
+                            className="grid grid-cols-[52px_1fr_1fr_auto] items-center gap-2 border-b border-slate-100 px-2 py-2 last:border-b-0"
                           >
                             <div className="text-xs font-medium text-slate-500">
                               Set {setIndex + 1}
@@ -1898,17 +2396,14 @@ export default function App() {
 
     screen = (
       <div className={`${appShell} pb-28`}>
-        <TopBar
-          titleText=""
-          onBack={() => {
-            setDetailEditMode(false);
-            setViewMode("training");
-          }}
-        />
+        <TopBar titleText="" />
 
         <main className={`${pageWidth} px-3 pb-8 pt-3`}>
-          <section className={`${card} overflow-hidden p-6`}>
-            <div className="flex items-start justify-between gap-4">
+          <section className="relative overflow-hidden rounded-[24px] border border-slate-100 bg-white p-5 shadow-[0_10px_34px_rgba(15,23,42,0.055)]">
+            <div className="pointer-events-none absolute right-2 top-2 opacity-[0.09]">
+              <div className="h-28 w-28 rounded-full bg-sky-300 blur-3xl" />
+            </div>
+            <div className="relative flex items-start justify-between gap-4">
               <div className="min-w-0 flex-1">
                 {exercise.isBase ? (
                   <h1 className="text-[28px] font-semibold tracking-[-0.025em] text-slate-950">
@@ -1930,15 +2425,23 @@ export default function App() {
               <MuscleMap exercise={exercise} size="lg" />
             </div>
 
-            <div className="mt-5 rounded-[22px] bg-gradient-to-br from-slate-50 to-white p-4 ring-1 ring-slate-100">
-              <div className="text-[11px] font-semibold text-slate-400">
-                前回の記録
+            <div className="mt-5 flex items-end justify-between rounded-[20px] bg-slate-50 p-4">
+              <div>
+                <div className="text-[11px] font-semibold text-slate-400">
+                  前回の記録
+                </div>
+                <div className="mt-1 text-[21px] font-semibold tracking-[-0.02em]">
+                  {firstSet
+                    ? `${firstSet.weight}kg × ${firstSet.reps} × ${exercise.sets.length}`
+                    : "—"}
+                </div>
               </div>
-              <div className="mt-1 text-xl font-semibold">
-                {firstSet
-                  ? `${firstSet.weight}kg × ${firstSet.reps} × ${exercise.sets.length}`
-                  : "—"}
-              </div>
+              <button
+                onClick={() => setViewMode("home")}
+                className="text-[11px] font-semibold text-sky-500"
+              >
+                過去の記録 ›
+              </button>
             </div>
           </section>
 
@@ -1964,7 +2467,7 @@ export default function App() {
                           Number(event.target.value || 0)
                         )
                       }
-                      className="h-11 w-full rounded-xl border border-slate-200 bg-white px-2 pr-7 text-right font-semibold outline-none focus:border-sky-400"
+                      className="h-12 w-full rounded-[14px] border border-slate-200 bg-white px-2 pr-7 text-right text-[15px] font-semibold outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
                     />
                     <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">
                       kg
@@ -1982,7 +2485,7 @@ export default function App() {
                           Number(event.target.value || 0)
                         )
                       }
-                      className="h-11 w-full rounded-xl border border-slate-200 bg-white px-2 pr-7 text-right font-semibold outline-none focus:border-sky-400"
+                      className="h-12 w-full rounded-[14px] border border-slate-200 bg-white px-2 pr-7 text-right text-[15px] font-semibold outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
                     />
                     <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">
                       回
@@ -2035,19 +2538,34 @@ export default function App() {
                   <button
                     key={video.id}
                     onClick={() => openFormVideo(video)}
-                    className={`flex w-full items-center gap-3 px-3 py-3 text-left active:bg-sky-50 ${
+                    className={`flex w-full items-center gap-3 px-3 py-3 text-left transition hover:bg-slate-50 active:bg-sky-50 ${
                       index > 0 ? "border-t border-slate-100" : ""
                     }`}
                   >
-                    <span className="flex h-10 w-14 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-slate-100 to-white text-sky-500 shadow-inner ring-1 ring-slate-100">
-                      ▶
+                    <span className="relative h-[54px] w-[84px] shrink-0 overflow-hidden rounded-xl bg-slate-100 shadow-sm ring-1 ring-slate-100">
+                      {getYouTubeThumbnail(video.url) ? (
+                        <img
+                          src={getYouTubeThumbnail(video.url)}
+                          alt=""
+                          loading="lazy"
+                          referrerPolicy="no-referrer"
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <span className="absolute inset-0 bg-gradient-to-br from-slate-100 to-white" />
+                      )}
+                      <span className="absolute inset-0 flex items-center justify-center bg-slate-950/15">
+                        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/95 pl-0.5 text-[11px] text-sky-500 shadow">
+                          ▶
+                        </span>
+                      </span>
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-semibold">
                         {video.title || `参考動画 ${index + 1}`}
                       </span>
                       <span className="mt-0.5 block text-[11px] text-slate-400">
-                        {formatStartTime(video.startSeconds)}
+                        {formatStartTime(video.startSeconds)}から再生
                       </span>
                     </span>
                     <span className="text-slate-300">›</span>
@@ -2222,6 +2740,64 @@ export default function App() {
   return (
     <div translate="no" className="notranslate">
       {screen}
+
+      {toast && (
+        <div className="pointer-events-none fixed inset-x-0 top-[max(14px,env(safe-area-inset-top))] z-[120] flex justify-center px-4">
+          <div
+            className={`flex max-w-sm items-center gap-3 rounded-2xl border bg-white/95 px-4 py-3 text-sm font-medium shadow-[0_16px_45px_rgba(15,23,42,0.18)] backdrop-blur-xl ${
+              toast.tone === "success"
+                ? "border-emerald-100 text-emerald-700"
+                : toast.tone === "error"
+                ? "border-red-100 text-red-600"
+                : "border-sky-100 text-slate-700"
+            }`}
+          >
+            <span
+              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs text-white ${
+                toast.tone === "success"
+                  ? "bg-emerald-500"
+                  : toast.tone === "error"
+                  ? "bg-red-500"
+                  : "bg-sky-500"
+              }`}
+            >
+              {toast.tone === "success" ? "✓" : toast.tone === "error" ? "!" : "i"}
+            </span>
+            <span>{toast.message}</span>
+          </div>
+        </div>
+      )}
+
+      {confirmAction && (
+        <div className="fixed inset-0 z-[110] flex items-end justify-center bg-slate-950/35 p-3 backdrop-blur-sm sm:items-center">
+          <div className="w-full max-w-sm rounded-[28px] bg-white p-5 shadow-2xl">
+            <div className="text-lg font-semibold tracking-[-0.02em]">
+              {confirmAction.title}
+            </div>
+            <div className="mt-2 text-sm leading-6 text-slate-500">
+              {confirmAction.message}
+            </div>
+            <div className="mt-5 grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setConfirmAction(null)}
+                className="rounded-2xl bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-600"
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={confirmAction.onConfirm}
+                className={`rounded-2xl px-4 py-3 text-sm font-semibold text-white ${
+                  confirmAction.tone === "danger"
+                    ? "bg-red-500"
+                    : "bg-gradient-to-r from-sky-500 to-blue-600"
+                }`}
+              >
+                {confirmAction.confirmLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {celebration && (
         <div

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { ChangeEvent, MouseEvent, SyntheticEvent } from "react";
+import type { ChangeEvent, MouseEvent } from "react";
 
 /** ========= Types ========= */
 type WorkoutPattern = "A" | "B";
@@ -579,42 +579,54 @@ type MuscleArea =
 
 // Wikimedia Commons / Anatomography / Gray's Anatomy の公開画像を利用。
 // 位置合わせの疑似オーバーレイは廃止し、対象筋が実際に着色された画像を種目ごとに表示する。
-const MUSCLE_ARTWORK: Record<MuscleArea, { url: string; position?: string }> = {
+const MUSCLE_ARTWORK: Record<
+  MuscleArea,
+  { src: string; objectPosition?: string; scale?: number }
+> = {
   chest: {
-    url: "https://commons.wikimedia.org/wiki/Special:Redirect/file/Pectoralis%20major.png",
-    position: "50% 50%",
+    src: "/illustrations/chest-front.svg",
+    objectPosition: "50% 50%",
+    scale: 1.02,
   },
   shoulders: {
-    url: "https://commons.wikimedia.org/wiki/Special:Redirect/file/Deltoid%20muscle%20top6.png",
-    position: "50% 48%",
+    src: "/illustrations/shoulders-front.svg",
+    objectPosition: "50% 50%",
+    scale: 1.02,
   },
   triceps: {
-    url: "https://commons.wikimedia.org/wiki/Special:Redirect/file/Triceps%20brachii%20muscle06.png",
-    position: "50% 44%",
+    src: "/illustrations/triceps-back.svg",
+    objectPosition: "50% 48%",
+    scale: 1.03,
   },
   biceps: {
-    url: "https://commons.wikimedia.org/wiki/Special:Redirect/file/Biceps%20brachii%20muscle01.png",
-    position: "50% 44%",
+    src: "/illustrations/biceps-front.svg",
+    objectPosition: "50% 49%",
+    scale: 1.03,
   },
   abs: {
-    url: "https://commons.wikimedia.org/wiki/Special:Redirect/file/202304%20Rectus%20abdominis%20muscle.svg",
-    position: "50% 47%",
+    src: "/illustrations/abs-front.svg",
+    objectPosition: "50% 50%",
+    scale: 1.02,
   },
   lats: {
-    url: "https://commons.wikimedia.org/wiki/Special:Redirect/file/Latissimus%20dorsi%20muscle%20frontal3.png",
-    position: "50% 49%",
+    src: "/illustrations/lats-back.svg",
+    objectPosition: "50% 48%",
+    scale: 1.03,
   },
   midback: {
-    url: "https://commons.wikimedia.org/wiki/Special:Redirect/file/Trapezius%20back.png",
-    position: "50% 45%",
+    src: "/illustrations/midback-back.svg",
+    objectPosition: "50% 48%",
+    scale: 1.03,
   },
   legs: {
-    url: "https://commons.wikimedia.org/wiki/Special:Redirect/file/202304%20Quadriceps%20femoris%20muscle.svg",
-    position: "50% 45%",
+    src: "/illustrations/legs-front.svg",
+    objectPosition: "50% 52%",
+    scale: 1.03,
   },
   generic: {
-    url: "https://commons.wikimedia.org/wiki/Special:Redirect/file/Muscles%20front%20and%20back.svg",
-    position: "50% 50%",
+    src: "/illustrations/body-generic.svg",
+    objectPosition: "50% 50%",
+    scale: 1,
   },
 };
 
@@ -654,30 +666,23 @@ function MuscleMap({
 
   return (
     <figure
-      className={`relative shrink-0 overflow-hidden bg-gradient-to-b from-slate-50 to-white ${
+      className={`relative shrink-0 overflow-hidden ${
         large
-          ? "h-[168px] w-[132px] rounded-[26px]"
-          : "h-[74px] w-[58px] rounded-2xl"
+          ? "h-[168px] w-[132px] rounded-[24px]"
+          : "h-[74px] w-[58px] rounded-[18px]"
       }`}
       aria-label={`${exercise.name}で主に鍛える部位`}
     >
+      <div className="absolute inset-0 rounded-[inherit] bg-[linear-gradient(180deg,#fbfdff_0%,#f7f9fb_100%)]" />
       <img
-        src={artwork.url}
+        src={artwork.src}
         alt={`${exercise.name}で主に鍛える部位`}
         draggable={false}
         loading={large ? "eager" : "lazy"}
-        referrerPolicy="no-referrer"
-        onError={(event: SyntheticEvent<HTMLImageElement>) => {
-          event.currentTarget.style.display = "none";
-        }}
-        className="h-full w-full select-none object-contain"
+        className="relative z-10 h-full w-full select-none object-contain"
         style={{
-          objectPosition: artwork.position ?? "center",
-          filter:
-            area === "generic"
-              ? "grayscale(1) contrast(.9) brightness(1.08)"
-              : "hue-rotate(185deg) saturate(1.05) contrast(.94) brightness(1.06)",
-          transform: large ? "scale(1.06)" : "scale(1.12)",
+          objectPosition: artwork.objectPosition ?? "center",
+          transform: `scale(${large ? artwork.scale ?? 1 : (artwork.scale ?? 1) * 1.05})`,
         }}
       />
     </figure>
@@ -837,6 +842,43 @@ export default function App() {
     message: string,
     tone: "success" | "error" | "info" = "info"
   ) => setToast({ message, tone });
+
+  // PWA / モバイルブラウザで常に端末幅いっぱいに描画する。
+  useEffect(() => {
+    let viewport = document.querySelector(
+      'meta[name="viewport"]'
+    ) as HTMLMetaElement | null;
+
+    if (!viewport) {
+      viewport = document.createElement("meta");
+      viewport.name = "viewport";
+      document.head.appendChild(viewport);
+    }
+
+    viewport.content =
+      "width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover";
+
+    const html = document.documentElement;
+    const body = document.body;
+    const root = document.getElementById("root");
+
+    html.style.width = "100%";
+    html.style.maxWidth = "100%";
+    html.style.overflowX = "hidden";
+
+    body.style.margin = "0";
+    body.style.width = "100%";
+    body.style.maxWidth = "100%";
+    body.style.minWidth = "0";
+    body.style.overflowX = "hidden";
+
+    if (root) {
+      root.style.width = "100%";
+      root.style.maxWidth = "100%";
+      root.style.minWidth = "0";
+      root.style.overflowX = "hidden";
+    }
+  }, []);
 
   // Chrome/Google Translateによるブランド名・種目名の意図しない翻訳を抑止。
   useEffect(() => {
@@ -1531,15 +1573,15 @@ export default function App() {
   };
 
   const appShell =
-    "min-h-screen bg-[radial-gradient(circle_at_top,_#ffffff_0%,_#f4f7fa_38%,_#eef2f6_100%)] text-slate-900 notranslate selection:bg-sky-100";
-  const pageWidth = "mx-auto w-full max-w-md";
+    "min-h-screen w-full min-w-0 overflow-x-hidden bg-[radial-gradient(circle_at_top,_#ffffff_0%,_#f4f7fa_38%,_#eef2f6_100%)] text-slate-900 notranslate selection:bg-sky-100";
+  const pageWidth = "w-full min-w-0";
   const card =
     "rounded-[24px] border border-slate-100/90 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.045)]";
 
   const BrandHeader = () => (
     <header className="border-b border-slate-100/90 bg-white/95 backdrop-blur-xl">
       <div
-        className={`${pageWidth} grid h-[72px] grid-cols-[48px_1fr_48px] items-center px-3`}
+        className={`${pageWidth} grid h-[72px] grid-cols-[48px_1fr_48px] items-center px-3 md:mx-auto md:max-w-2xl`}
       >
         <button
           onClick={() => pushView("settings")}
@@ -1587,7 +1629,7 @@ export default function App() {
     titleText: string;
   }) => (
     <header className="sticky top-0 z-40 border-b border-slate-100 bg-white/95 backdrop-blur">
-      <div className={`${pageWidth} grid h-16 grid-cols-[48px_1fr_48px] items-center px-2`}>
+      <div className={`${pageWidth} grid h-16 grid-cols-[48px_1fr_48px] items-center px-2 md:mx-auto md:max-w-2xl`}>
         <button
           onClick={goBackInApp}
           className="flex h-10 w-10 items-center justify-center rounded-full text-2xl text-slate-700 active:bg-slate-100"
@@ -1665,8 +1707,8 @@ export default function App() {
     };
 
     return (
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200/70 bg-white/95 px-4 pb-[max(10px,env(safe-area-inset-bottom))] pt-2 shadow-[0_-8px_28px_rgba(15,23,42,0.045)] backdrop-blur-xl">
-        <div className={`${pageWidth} grid grid-cols-4 gap-1`}>
+      <nav className="fixed left-0 right-0 bottom-0 z-40 border-t border-slate-200/70 bg-white/95 px-4 pb-[max(10px,env(safe-area-inset-bottom))] pt-2 shadow-[0_-8px_28px_rgba(15,23,42,0.045)] backdrop-blur-xl">
+        <div className={`${pageWidth} grid grid-cols-4 gap-1 md:mx-auto md:max-w-2xl`}>
           {items.map((item) => {
             const selected = active === item.view;
             return (
@@ -1700,8 +1742,8 @@ export default function App() {
   };
 
   const BottomXPBar = () => (
-    <div className="fixed inset-x-0 bottom-0 z-50 border-t border-slate-700/20 bg-[#172238]/[0.985] px-4 py-3 text-white shadow-[0_-12px_32px_rgba(15,23,42,0.2)] backdrop-blur">
-      <div className={`${pageWidth} flex items-center gap-3`}>
+    <div className="fixed left-0 right-0 bottom-0 z-50 border-t border-slate-700/20 bg-[#172238]/[0.985] px-4 py-3 text-white shadow-[0_-12px_32px_rgba(15,23,42,0.2)] backdrop-blur">
+      <div className={`${pageWidth} flex items-center gap-3 md:mx-auto md:max-w-2xl`}>
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-lg text-sky-300">
           ⚡
         </span>
@@ -1732,7 +1774,7 @@ export default function App() {
     screen = (
       <div className={`${appShell} pb-24`}>
         <BrandHeader />
-        <div className={`${pageWidth} space-y-3 px-3 pt-3`}>
+        <div className={`${pageWidth} space-y-3 px-3 pt-3 md:mx-auto md:max-w-2xl`}>
 
           <section id="overview" className={`${card} p-5`}>
             <div className="flex items-center gap-3">
@@ -1958,7 +2000,7 @@ export default function App() {
     screen = (
       <div className={`${appShell} pb-24`}>
         <BrandHeader />
-        <main className={`${pageWidth} px-3 py-4`}>
+        <main className={`${pageWidth} px-3 py-4 md:mx-auto md:max-w-2xl`}>
           <div className="mb-4">
             <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-sky-500">
               Training History
@@ -2028,7 +2070,7 @@ export default function App() {
     screen = (
       <div className={`${appShell} pb-24`}>
         <BrandHeader />
-        <main className={`${pageWidth} px-3 py-4`}>
+        <main className={`${pageWidth} px-3 py-4 md:mx-auto md:max-w-2xl`}>
           <div className="mb-4">
             <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-sky-500">
               Progress
@@ -2139,7 +2181,7 @@ export default function App() {
     screen = (
       <div className={`${appShell} pb-24`}>
         <TopBar titleText="設定" />
-        <main className={`${pageWidth} px-3 py-4`}>
+        <main className={`${pageWidth} px-3 py-4 md:mx-auto md:max-w-2xl`}>
           <section className={`${card} overflow-hidden`}>
             <div className="px-5 py-4">
               <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
@@ -2223,7 +2265,9 @@ export default function App() {
           <div className="mt-5 px-3 text-center text-[9px] leading-5 text-slate-400">
             FORGE Training Log
             <br />
-            Muscle artwork: Wikimedia Commons / Anatomography / Gray&apos;s Anatomy
+            Muscle artwork: FORGE custom illustration set
+            <br />
+            public/illustrations/*.svg
           </div>
         </main>
         <MobileNav active="settings" />
@@ -2234,7 +2278,7 @@ export default function App() {
       <div className={`${appShell} pb-28`}>
         <TopBar titleText={`${currentPattern}メニュー`} />
 
-        <main className={`${pageWidth} px-3 py-4`}>
+        <main className={`${pageWidth} px-3 py-4 md:mx-auto md:max-w-2xl`}>
           <section className="mb-4">
             <div className="flex items-center justify-between">
               <div className="text-xs text-slate-500">

@@ -547,6 +547,94 @@ type MuscleArea =
   | "legs"
   | "generic";
 
+// High-quality anatomy base illustrations from Wikimedia Commons.
+// Front/back artwork: Termininja, CC BY-SA 3.0.
+const ANATOMY_FRONT_URL =
+  "https://upload.wikimedia.org/wikipedia/commons/1/13/Muscular_system.svg";
+const ANATOMY_BACK_URL =
+  "https://upload.wikimedia.org/wikipedia/commons/9/90/Muscular_system-back.svg";
+
+type AnatomyOverlay = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  rotate?: number;
+  radius?: string;
+};
+
+function getAnatomyOverlays(area: MuscleArea): {
+  view: "front" | "back";
+  overlays: AnatomyOverlay[];
+} {
+  switch (area) {
+    case "chest":
+      return {
+        view: "front",
+        overlays: [
+          { left: 38, top: 24.5, width: 12.5, height: 10, rotate: -5, radius: "48% 52% 48% 52%" },
+          { left: 49.5, top: 24.5, width: 12.5, height: 10, rotate: 5, radius: "52% 48% 52% 48%" },
+        ],
+      };
+    case "shoulders":
+      return {
+        view: "front",
+        overlays: [
+          { left: 28.5, top: 22.5, width: 10, height: 9, rotate: -14, radius: "50%" },
+          { left: 61.5, top: 22.5, width: 10, height: 9, rotate: 14, radius: "50%" },
+        ],
+      };
+    case "triceps":
+      return {
+        view: "back",
+        overlays: [
+          { left: 27, top: 33, width: 8, height: 18, rotate: 8, radius: "45%" },
+          { left: 65, top: 33, width: 8, height: 18, rotate: -8, radius: "45%" },
+        ],
+      };
+    case "biceps":
+      return {
+        view: "front",
+        overlays: [
+          { left: 27, top: 32.5, width: 8.5, height: 16, rotate: -7, radius: "45%" },
+          { left: 64.5, top: 32.5, width: 8.5, height: 16, rotate: 7, radius: "45%" },
+        ],
+      };
+    case "abs":
+      return {
+        view: "front",
+        overlays: [
+          { left: 43, top: 36, width: 14, height: 27, radius: "38%" },
+        ],
+      };
+    case "lats":
+      return {
+        view: "back",
+        overlays: [
+          { left: 31.5, top: 31, width: 15, height: 26, rotate: -6, radius: "45% 30% 55% 45%" },
+          { left: 53.5, top: 31, width: 15, height: 26, rotate: 6, radius: "30% 45% 45% 55%" },
+        ],
+      };
+    case "midback":
+      return {
+        view: "back",
+        overlays: [
+          { left: 39, top: 23.5, width: 22, height: 21, radius: "42%" },
+        ],
+      };
+    case "legs":
+      return {
+        view: "front",
+        overlays: [
+          { left: 35, top: 61, width: 13.5, height: 29, rotate: 2, radius: "45%" },
+          { left: 51.5, top: 61, width: 13.5, height: 29, rotate: -2, radius: "45%" },
+        ],
+      };
+    default:
+      return { view: "front", overlays: [] };
+  }
+}
+
 function getMuscleArea(exercise: ExerciseTemplate): MuscleArea {
   const key = exercise.key.toLowerCase();
   const name = exercise.name;
@@ -574,103 +662,43 @@ function MuscleMap({
   size?: "sm" | "lg";
 }) {
   const area = getMuscleArea(exercise);
-  const isBack = area === "lats" || area === "midback";
-  const wrap = size === "lg" ? "h-40 w-28" : "h-[68px] w-12";
-
-  const active = "#2f9df4";
-  const activeSoft = "#77c5fb";
-  const muscle = "#dfe5ea";
-  const muscleDark = "#cdd6de";
-  const outline = "#b8c3cd";
+  const config = getAnatomyOverlays(area);
+  const large = size === "lg";
 
   return (
-    <svg
-      viewBox="0 0 120 180"
-      className={`${wrap} shrink-0`}
-      role="img"
+    <figure
+      className={`relative shrink-0 overflow-hidden ${
+        large
+          ? "h-[176px] w-[126px] rounded-[28px] bg-gradient-to-b from-slate-50 to-white"
+          : "h-[72px] w-[52px] rounded-2xl bg-slate-50"
+      }`}
       aria-label={`${exercise.name}で主に鍛える部位`}
     >
-      <g stroke={outline} strokeWidth="1.15" strokeLinejoin="round">
-        {/* head / neck */}
-        <ellipse cx="60" cy="15" rx="11" ry="13" fill="#e8edf1" />
-        <path d="M52 27 50 36h20l-2-9" fill="#e1e7ec" />
+      <img
+        src={config.view === "back" ? ANATOMY_BACK_URL : ANATOMY_FRONT_URL}
+        alt=""
+        draggable={false}
+        className="absolute inset-0 h-full w-full select-none object-contain object-top opacity-[0.42] grayscale saturate-0"
+        style={{ filter: "grayscale(1) saturate(0) contrast(.82) brightness(1.18)" }}
+      />
 
-        {/* torso base */}
-        <path
-          d="M41 34c-8 5-12 18-11 33l5 48 8 27h34l8-27 5-48c1-15-3-28-11-33-10-6-28-6-38 0Z"
-          fill="#eef2f5"
+      {config.overlays.map((overlay, index) => (
+        <span
+          key={`${area}-${index}`}
+          className="absolute bg-sky-500/80 shadow-[0_0_18px_rgba(14,165,233,.22)] mix-blend-multiply"
+          style={{
+            left: `${overlay.left}%`,
+            top: `${overlay.top}%`,
+            width: `${overlay.width}%`,
+            height: `${overlay.height}%`,
+            transform: `rotate(${overlay.rotate ?? 0}deg)`,
+            borderRadius: overlay.radius ?? "45%",
+          }}
         />
+      ))}
 
-        {/* shoulders */}
-        <ellipse cx="34" cy="45" rx="12" ry="10" fill={area === "shoulders" ? active : muscle} />
-        <ellipse cx="86" cy="45" rx="12" ry="10" fill={area === "shoulders" ? active : muscle} />
-
-        {/* arms */}
-        <path
-          d="M27 48c-7 8-9 17-10 30l-2 28 9 2 7-28 6-21Z"
-          fill={area === "biceps" && !isBack ? active : area === "triceps" && isBack ? active : muscle}
-        />
-        <path
-          d="M93 48c7 8 9 17 10 30l2 28-9 2-7-28-6-21Z"
-          fill={area === "biceps" && !isBack ? active : area === "triceps" && isBack ? active : muscle}
-        />
-        <path d="M16 107 13 132l8 2 6-25Z" fill={muscleDark} />
-        <path d="m104 107 3 25-8 2-6-25Z" fill={muscleDark} />
-
-        {/* upper torso front/back */}
-        {!isBack ? (
-          <>
-            <path
-              d="M40 42c5-6 13-8 20-4v29c-10 2-18-2-23-10Z"
-              fill={area === "chest" ? active : muscle}
-            />
-            <path
-              d="M80 42c-5-6-13-8-20-4v29c10 2 18-2 23-10Z"
-              fill={area === "chest" ? active : muscle}
-            />
-            <path d="M43 69h15v16H42Z" fill={area === "abs" ? activeSoft : muscle} />
-            <path d="M62 69h15l1 16H62Z" fill={area === "abs" ? activeSoft : muscle} />
-            <path d="M42 88h16v16H40Z" fill={area === "abs" ? active : muscle} />
-            <path d="M62 88h16l2 16H62Z" fill={area === "abs" ? active : muscle} />
-            <path d="M40 107h18v16H38Z" fill={area === "abs" ? activeSoft : muscle} />
-            <path d="M62 107h18l2 16H62Z" fill={area === "abs" ? activeSoft : muscle} />
-
-            {/* triceps shown on posterior edge even on front silhouette */}
-            {area === "triceps" && (
-              <>
-                <path d="M22 57c5 0 8 7 8 18l-5 26-7-2 2-28Z" fill={active} stroke="none" />
-                <path d="M98 57c-5 0-8 7-8 18l5 26 7-2-2-28Z" fill={active} stroke="none" />
-              </>
-            )}
-          </>
-        ) : (
-          <>
-            <path
-              d="M41 39c7-5 31-5 38 0l-5 22-14 9-14-9Z"
-              fill={area === "midback" ? active : muscleDark}
-            />
-            <path
-              d="M40 55 31 82l11 32 18-24V64Z"
-              fill={area === "lats" ? active : muscle}
-            />
-            <path
-              d="m80 55 9 27-11 32-18-24V64Z"
-              fill={area === "lats" ? active : muscle}
-            />
-            <path d="M48 72h24l-4 42H52Z" fill={area === "midback" ? activeSoft : muscleDark} />
-          </>
-        )}
-
-        {/* hips / legs */}
-        <path d="M42 124h18v20l-8 29-13-2-2-28Z" fill={area === "legs" ? active : muscle} />
-        <path d="M78 124H60v20l8 29 13-2 2-28Z" fill={area === "legs" ? active : muscle} />
-        <path d="M39 171h13M68 171h13" fill="none" strokeLinecap="round" strokeWidth="5" />
-
-        {area === "generic" && (
-          <path d="M38 48h44M35 58h50" fill="none" stroke={active} strokeWidth="5" strokeLinecap="round" />
-        )}
-      </g>
-    </svg>
+      <span className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-white via-white/80 to-transparent" />
+    </figure>
   );
 }
 
@@ -1409,15 +1437,15 @@ export default function App() {
   };
 
   const appShell =
-    "min-h-screen bg-[#f3f5f7] text-slate-900 notranslate selection:bg-sky-100";
+    "min-h-screen bg-[radial-gradient(circle_at_top,_#ffffff_0%,_#f4f7fa_38%,_#eef2f6_100%)] text-slate-900 notranslate selection:bg-sky-100";
   const pageWidth = "mx-auto w-full max-w-md";
   const card =
-    "rounded-[24px] border border-slate-100 bg-white shadow-[0_12px_32px_rgba(15,23,42,0.055)]";
+    "rounded-[28px] border border-white/80 bg-white/95 shadow-[0_18px_50px_rgba(15,23,42,0.075)] backdrop-blur";
 
   const BrandHeader = ({ compact = false }: { compact?: boolean }) => (
     <header
       className={`${card} flex items-center justify-between ${
-        compact ? "px-4 py-3" : "px-5 py-4"
+        compact ? "px-4 py-3" : "px-5 py-[18px]"
       }`}
     >
       <div className="text-slate-800">
@@ -1452,6 +1480,9 @@ export default function App() {
           >
             全データをリセット
           </button>
+          <div className="mt-2 border-t border-slate-100 px-3 pt-3 text-[10px] leading-4 text-slate-400">
+            Anatomy artwork: Termininja / Wikimedia Commons / CC BY-SA 3.0
+          </div>
         </div>
       </details>
     </header>
@@ -1519,14 +1550,14 @@ export default function App() {
         <div className={`${pageWidth} space-y-3`}>
           <BrandHeader />
 
-          <section className={`${card} p-5`}>
+          <section className={`${card} p-6`}>
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="text-[11px] font-semibold tracking-[0.12em] text-slate-400">
                   TOTAL EXPERIENCE
                 </div>
                 <div className="mt-1 flex items-end gap-2">
-                  <span className="text-[38px] font-semibold leading-none tracking-[-0.04em] text-slate-950">
+                  <span className="text-[40px] font-semibold leading-none tracking-[-0.04em] text-slate-950">
                     {pretty(totalXP)}
                   </span>
                   <span className="pb-1 text-lg font-semibold text-slate-500">XP</span>
@@ -1536,7 +1567,7 @@ export default function App() {
                 <div className="text-[11px] font-semibold tracking-[0.1em] text-slate-400">
                   LEVEL
                 </div>
-                <div className="mt-1 text-[32px] font-semibold leading-none text-slate-950">
+                <div className="mt-1 text-[34px] font-semibold leading-none text-slate-950">
                   Lv {lv.level}
                 </div>
                 <div className="mt-2 max-w-[140px] truncate text-xs text-slate-500">
@@ -1626,37 +1657,30 @@ export default function App() {
               })}
             </div>
 
-            <div className="mt-5 grid grid-cols-[1fr_105px] gap-3">
-              <div>
-                <div className="mb-2 text-sm font-semibold">
+            <div className="mt-5 rounded-[22px] bg-gradient-to-br from-slate-50 to-white p-4 ring-1 ring-slate-100">
+              <div className="mb-3 flex items-center justify-between">
+                <div className="text-sm font-semibold text-slate-800">
                   {currentPattern}メニューの種目
                 </div>
-                <div className="space-y-2">
-                  {standardVisibleExercises.map(({ exercise }, index) => (
-                    <button
-                      key={exercise.key}
-                      onClick={() => openExerciseDetail(exercise.key)}
-                      className="flex w-full items-center gap-2 text-left"
-                    >
-                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-sky-500 text-[11px] font-semibold text-white">
-                        {index + 1}
-                      </span>
-                      <span className="truncate text-sm font-medium text-slate-700">
-                        {exercise.name}
-                      </span>
-                    </button>
-                  ))}
+                <div className="text-[10px] font-semibold tracking-[0.16em] text-slate-300">
+                  TODAY'S PLAN
                 </div>
               </div>
-              <div className="flex items-end justify-center">
-                {standardVisibleExercises[0] && (
-                  <div className="opacity-80">
-                    <MuscleMap
-                      exercise={standardVisibleExercises[0].exercise}
-                      size="lg"
-                    />
-                  </div>
-                )}
+              <div className="grid grid-cols-2 gap-x-3 gap-y-2.5">
+                {standardVisibleExercises.map(({ exercise }, index) => (
+                  <button
+                    key={exercise.key}
+                    onClick={() => openExerciseDetail(exercise.key)}
+                    className="flex min-w-0 items-center gap-2 rounded-xl px-1 py-1 text-left active:bg-white"
+                  >
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-sky-400 to-blue-600 text-[10px] font-semibold text-white shadow-sm shadow-sky-200">
+                      {index + 1}
+                    </span>
+                    <span className="truncate text-[13px] font-medium text-slate-700">
+                      {exercise.name}
+                    </span>
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -1742,9 +1766,9 @@ export default function App() {
               return (
                 <article
                   key={exercise.key}
-                  className={`${card} overflow-hidden`}
+                  className={`${card} overflow-hidden transition-shadow duration-200 ${isOpen ? "shadow-[0_20px_55px_rgba(15,23,42,0.10)]" : ""}`}
                 >
-                  <div className="flex items-center gap-3 p-3">
+                  <div className="flex items-center gap-3 px-4 py-3.5">
                     <button
                       onClick={() =>
                         setOpenExerciseKey((prev) =>
@@ -1797,12 +1821,12 @@ export default function App() {
                   </div>
 
                   {isOpen && (
-                    <div className="border-t border-slate-100 px-3 pb-3 pt-2">
+                    <div className="border-t border-slate-100 bg-gradient-to-b from-slate-50/75 to-white px-3 pb-3 pt-2.5">
                       <div className="space-y-1.5">
                         {exercise.sets.map((set, setIndex) => (
                           <div
                             key={`${exercise.key}-${setIndex}`}
-                            className="grid grid-cols-[52px_1fr_1fr_auto] items-center gap-2 rounded-xl bg-slate-50 px-2.5 py-2"
+                            className="grid grid-cols-[52px_1fr_1fr_auto] items-center gap-2 rounded-xl px-3 py-2.5 even:bg-slate-50/80"
                           >
                             <div className="text-xs font-medium text-slate-500">
                               Set {setIndex + 1}
@@ -1883,11 +1907,11 @@ export default function App() {
         />
 
         <main className={`${pageWidth} px-3 pb-8 pt-3`}>
-          <section className={`${card} overflow-hidden p-5`}>
+          <section className={`${card} overflow-hidden p-6`}>
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0 flex-1">
                 {exercise.isBase ? (
-                  <h1 className="text-2xl font-semibold tracking-tight text-slate-950">
+                  <h1 className="text-[28px] font-semibold tracking-[-0.025em] text-slate-950">
                     {exercise.name}
                   </h1>
                 ) : (
@@ -1906,7 +1930,7 @@ export default function App() {
               <MuscleMap exercise={exercise} size="lg" />
             </div>
 
-            <div className="mt-4 rounded-2xl bg-slate-50 p-4">
+            <div className="mt-5 rounded-[22px] bg-gradient-to-br from-slate-50 to-white p-4 ring-1 ring-slate-100">
               <div className="text-[11px] font-semibold text-slate-400">
                 前回の記録
               </div>
@@ -2001,7 +2025,7 @@ export default function App() {
               </button>
             </div>
 
-            <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200">
+            <div className="mt-3 overflow-hidden rounded-[22px] border border-slate-100 bg-slate-50/50">
               {exercise.formVideos.length === 0 ? (
                 <div className="px-4 py-4 text-xs text-slate-400">
                   参考動画はまだ登録されていません。
@@ -2015,7 +2039,7 @@ export default function App() {
                       index > 0 ? "border-t border-slate-100" : ""
                     }`}
                   >
-                    <span className="flex h-10 w-14 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-sky-500">
+                    <span className="flex h-10 w-14 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-slate-100 to-white text-sky-500 shadow-inner ring-1 ring-slate-100">
                       ▶
                     </span>
                     <span className="min-w-0 flex-1">

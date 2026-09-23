@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { ChangeEvent, MouseEvent } from "react";
 
 /** ========= Types ========= */
 type WorkoutPattern = "A" | "B";
+type ViewMode = "home" | "training" | "exercise";
 
 type SetEntry = {
   weight: number;
@@ -379,7 +381,7 @@ function migrateExercises(rawExercises: LegacyExercise[] | undefined): ExerciseT
           : `extra_migrated_${index}`,
       name:
         typeof old.name === "string" && old.name ? old.name : "追加種目",
-      isBase: Boolean(old.isBase),
+      isBase: false,
       pattern: isPattern(old.pattern) ? old.pattern : "B",
       sets: normalizeSets(old.sets, [
         { weight: 20, reps: 10, done: false },
@@ -573,78 +575,101 @@ function MuscleMap({
 }) {
   const area = getMuscleArea(exercise);
   const isBack = area === "lats" || area === "midback";
-  const wrap = size === "lg" ? "h-36 w-28" : "h-16 w-12";
+  const wrap = size === "lg" ? "h-40 w-28" : "h-[68px] w-12";
 
-  const active = "fill-sky-500";
-  const muted = "fill-slate-200";
-  const line = "stroke-slate-300";
+  const active = "#2f9df4";
+  const activeSoft = "#77c5fb";
+  const muscle = "#dfe5ea";
+  const muscleDark = "#cdd6de";
+  const outline = "#b8c3cd";
 
   return (
     <svg
-      viewBox="0 0 100 150"
+      viewBox="0 0 120 180"
       className={`${wrap} shrink-0`}
       role="img"
       aria-label={`${exercise.name}で主に鍛える部位`}
     >
-      <circle cx="50" cy="14" r="10" className={muted} />
-      <path
-        d="M36 27C30 33 26 45 27 61l4 34 8 38h22l8-38 4-34c1-16-3-28-9-34-8-6-20-6-28 0Z"
-        className={muted}
-      />
-      <path d="M34 32 19 45 14 78l9 2 11-29" className={`${line} fill-none`} strokeWidth="8" strokeLinecap="round" />
-      <path d="m66 32 15 13 5 33-9 2-11-29" className={`${line} fill-none`} strokeWidth="8" strokeLinecap="round" />
-      <path d="M42 129 36 147M58 129l6 18" className={`${line} fill-none`} strokeWidth="9" strokeLinecap="round" />
+      <g stroke={outline} strokeWidth="1.15" strokeLinejoin="round">
+        {/* head / neck */}
+        <ellipse cx="60" cy="15" rx="11" ry="13" fill="#e8edf1" />
+        <path d="M52 27 50 36h20l-2-9" fill="#e1e7ec" />
 
-      {!isBack && area === "chest" && (
-        <>
-          <path d="M33 40c6-7 13-7 17 0v20c-8 2-14-2-17-8Z" className={active} />
-          <path d="M67 40c-6-7-13-7-17 0v20c8 2 14-2 17-8Z" className={active} />
-        </>
-      )}
-      {!isBack && area === "shoulders" && (
-        <>
-          <ellipse cx="29" cy="38" rx="10" ry="12" className={active} />
-          <ellipse cx="71" cy="38" rx="10" ry="12" className={active} />
-        </>
-      )}
-      {!isBack && area === "triceps" && (
-        <>
-          <path d="M20 48c5 0 8 5 7 13l-4 18-8-2 2-20Z" className={active} />
-          <path d="M80 48c-5 0-8 5-7 13l4 18 8-2-2-20Z" className={active} />
-        </>
-      )}
-      {!isBack && area === "biceps" && (
-        <>
-          <ellipse cx="22" cy="57" rx="7" ry="12" className={active} />
-          <ellipse cx="78" cy="57" rx="7" ry="12" className={active} />
-        </>
-      )}
-      {!isBack && area === "abs" && (
-        <>
-          <rect x="42" y="62" width="7" height="14" rx="3" className={active} />
-          <rect x="51" y="62" width="7" height="14" rx="3" className={active} />
-          <rect x="42" y="78" width="7" height="14" rx="3" className={active} />
-          <rect x="51" y="78" width="7" height="14" rx="3" className={active} />
-          <rect x="42" y="94" width="7" height="14" rx="3" className={active} />
-          <rect x="51" y="94" width="7" height="14" rx="3" className={active} />
-        </>
-      )}
-      {area === "legs" && (
-        <>
-          <path d="M38 104h12l-4 34-10 5-4-13Z" className={active} />
-          <path d="M62 104H50l4 34 10 5 4-13Z" className={active} />
-        </>
-      )}
-      {isBack && (
-        <>
-          <path d="M34 36c8-5 24-5 32 0l-4 20-12 9-12-9Z" className={area === "midback" ? active : muted} />
-          <path d="M34 48 27 72l14 24 9-15V62Z" className={area === "lats" ? active : muted} />
-          <path d="m66 48 7 24-14 24-9-15V62Z" className={area === "lats" ? active : muted} />
-        </>
-      )}
-      {area === "generic" && (
-        <path d="M31 46h38M26 54h48" className="stroke-sky-500" strokeWidth="6" strokeLinecap="round" />
-      )}
+        {/* torso base */}
+        <path
+          d="M41 34c-8 5-12 18-11 33l5 48 8 27h34l8-27 5-48c1-15-3-28-11-33-10-6-28-6-38 0Z"
+          fill="#eef2f5"
+        />
+
+        {/* shoulders */}
+        <ellipse cx="34" cy="45" rx="12" ry="10" fill={area === "shoulders" ? active : muscle} />
+        <ellipse cx="86" cy="45" rx="12" ry="10" fill={area === "shoulders" ? active : muscle} />
+
+        {/* arms */}
+        <path
+          d="M27 48c-7 8-9 17-10 30l-2 28 9 2 7-28 6-21Z"
+          fill={area === "biceps" && !isBack ? active : area === "triceps" && isBack ? active : muscle}
+        />
+        <path
+          d="M93 48c7 8 9 17 10 30l2 28-9 2-7-28-6-21Z"
+          fill={area === "biceps" && !isBack ? active : area === "triceps" && isBack ? active : muscle}
+        />
+        <path d="M16 107 13 132l8 2 6-25Z" fill={muscleDark} />
+        <path d="m104 107 3 25-8 2-6-25Z" fill={muscleDark} />
+
+        {/* upper torso front/back */}
+        {!isBack ? (
+          <>
+            <path
+              d="M40 42c5-6 13-8 20-4v29c-10 2-18-2-23-10Z"
+              fill={area === "chest" ? active : muscle}
+            />
+            <path
+              d="M80 42c-5-6-13-8-20-4v29c10 2 18-2 23-10Z"
+              fill={area === "chest" ? active : muscle}
+            />
+            <path d="M43 69h15v16H42Z" fill={area === "abs" ? activeSoft : muscle} />
+            <path d="M62 69h15l1 16H62Z" fill={area === "abs" ? activeSoft : muscle} />
+            <path d="M42 88h16v16H40Z" fill={area === "abs" ? active : muscle} />
+            <path d="M62 88h16l2 16H62Z" fill={area === "abs" ? active : muscle} />
+            <path d="M40 107h18v16H38Z" fill={area === "abs" ? activeSoft : muscle} />
+            <path d="M62 107h18l2 16H62Z" fill={area === "abs" ? activeSoft : muscle} />
+
+            {/* triceps shown on posterior edge even on front silhouette */}
+            {area === "triceps" && (
+              <>
+                <path d="M22 57c5 0 8 7 8 18l-5 26-7-2 2-28Z" fill={active} stroke="none" />
+                <path d="M98 57c-5 0-8 7-8 18l5 26 7-2-2-28Z" fill={active} stroke="none" />
+              </>
+            )}
+          </>
+        ) : (
+          <>
+            <path
+              d="M41 39c7-5 31-5 38 0l-5 22-14 9-14-9Z"
+              fill={area === "midback" ? active : muscleDark}
+            />
+            <path
+              d="M40 55 31 82l11 32 18-24V64Z"
+              fill={area === "lats" ? active : muscle}
+            />
+            <path
+              d="m80 55 9 27-11 32-18-24V64Z"
+              fill={area === "lats" ? active : muscle}
+            />
+            <path d="M48 72h24l-4 42H52Z" fill={area === "midback" ? activeSoft : muscleDark} />
+          </>
+        )}
+
+        {/* hips / legs */}
+        <path d="M42 124h18v20l-8 29-13-2-2-28Z" fill={area === "legs" ? active : muscle} />
+        <path d="M78 124H60v20l8 29 13-2 2-28Z" fill={area === "legs" ? active : muscle} />
+        <path d="M39 171h13M68 171h13" fill="none" strokeLinecap="round" strokeWidth="5" />
+
+        {area === "generic" && (
+          <path d="M38 48h44M35 58h50" fill="none" stroke={active} strokeWidth="5" strokeLinecap="round" />
+        )}
+      </g>
     </svg>
   );
 }
@@ -701,13 +726,10 @@ export default function App() {
   const [runMeters, setRunMeters] = useState<number>(0);
   const [currentPattern, setCurrentPattern] = useState<WorkoutPattern>("A");
   const [lastPattern, setLastPattern] = useState<WorkoutPattern | null>(null);
-  const [openVideoManagers, setOpenVideoManagers] = useState<
-    Record<string, boolean>
-  >({});
-  const [editVideoManagers, setEditVideoManagers] = useState<
-    Record<string, boolean>
-  >({});
   const [openExerciseKey, setOpenExerciseKey] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>("home");
+  const [selectedExerciseKey, setSelectedExerciseKey] = useState<string | null>(null);
+  const [detailEditMode, setDetailEditMode] = useState(false);
   const [celebration, setCelebration] = useState<{
     xp: number;
     oldLevel: number;
@@ -751,6 +773,27 @@ export default function App() {
     setLastPattern(state.lastPattern);
     writeState(state);
   };
+
+  // Chrome/Google Translateによるブランド名・種目名の意図しない翻訳を抑止。
+  useEffect(() => {
+    document.documentElement.lang = "ja";
+    document.documentElement.setAttribute("translate", "no");
+
+    let meta = document.querySelector('meta[name="google"]') as HTMLMetaElement | null;
+    const created = !meta;
+    if (!meta) {
+      meta = document.createElement("meta");
+      meta.name = "google";
+      document.head.appendChild(meta);
+    }
+    meta.content = "notranslate";
+
+    return () => {
+      if (created && meta?.parentNode) {
+        meta.parentNode.removeChild(meta);
+      }
+    };
+  }, []);
 
   // v7読み込み。v7がなければv6/v5/v4を自動移行する。
   useEffect(() => {
@@ -873,10 +916,7 @@ export default function App() {
 
   const selectPattern = (pattern: WorkoutPattern) => {
     setCurrentPattern(pattern);
-    const firstExercise = latestStateRef.current.exercises.find(
-      (exercise) => exercise.pattern === pattern
-    );
-    setOpenExerciseKey(firstExercise?.key ?? null);
+    setOpenExerciseKey(null);
     persistNow({ currentPattern: pattern });
   };
 
@@ -962,7 +1002,9 @@ export default function App() {
         formMemoDraft: "",
       },
     ]);
-    setOpenVideoManagers((prev) => ({ ...prev, [key]: true }));
+    setSelectedExerciseKey(key);
+    setDetailEditMode(true);
+    setViewMode("exercise");
   };
 
   const deleteExercise = (exerciseKey: string) => {
@@ -982,12 +1024,11 @@ export default function App() {
     setExercises(nextExercises);
     persistNow({ exercises: nextExercises });
 
-    // 削除した種目の動画編集パネル状態も破棄する。
-    setOpenVideoManagers((prev) => {
-      const next = { ...prev };
-      delete next[exerciseKey];
-      return next;
-    });
+    if (selectedExerciseKey === exerciseKey) {
+      setSelectedExerciseKey(null);
+      setDetailEditMode(false);
+      setViewMode("training");
+    }
   };
 
   const updateExerciseName = (exIdx: number, name: string) => {
@@ -1244,11 +1285,10 @@ export default function App() {
     setRunMeters(nextState.runMeters);
     setCurrentPattern(nextState.currentPattern);
     setLastPattern(nextState.lastPattern);
-    setOpenExerciseKey(
-      nextState.exercises.find(
-        (exercise) => exercise.pattern === nextState.currentPattern
-      )?.key ?? null
-    );
+    setOpenExerciseKey(null);
+    setSelectedExerciseKey(null);
+    setDetailEditMode(false);
+    setViewMode("home");
 
     setCelebration({
       xp: snapshotCalc.finalXP,
@@ -1318,13 +1358,19 @@ export default function App() {
     setRunMeters(nextState.runMeters);
     setCurrentPattern(nextState.currentPattern);
     setLastPattern(nextState.lastPattern);
-    setOpenVideoManagers({});
+    setOpenExerciseKey(null);
+    setSelectedExerciseKey(null);
+    setDetailEditMode(false);
+    setViewMode("home");
     setCelebration(null);
   };
 
   if (!loaded) {
     return (
-      <div className="min-h-screen bg-slate-100 flex items-center justify-center text-slate-500">
+      <div
+        translate="no"
+        className="notranslate min-h-screen bg-[#f4f6f8] flex items-center justify-center text-slate-500"
+      >
         <div className="flex flex-col items-center gap-4">
           <div className="text-slate-800">
             <ForgeLogo />
@@ -1338,660 +1384,829 @@ export default function App() {
   const motivationPhrase =
     MOTIVATION_PHRASES[notes.length % MOTIVATION_PHRASES.length];
 
-  return (
-    <div className="min-h-screen bg-[#eef1f4] text-slate-900">
-      <div className="mx-auto max-w-3xl px-3 pb-28 pt-3 sm:px-5 sm:pt-5">
-        {/* Brand header */}
-        <header className="mb-3 flex items-center justify-between rounded-[24px] border border-white/70 bg-white/90 px-4 py-3 shadow-[0_10px_35px_rgba(15,23,42,0.06)] backdrop-blur">
-          <div className="text-slate-800">
-            <ForgeLogo />
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={exportJSON}
-              className="hidden rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-500 hover:bg-slate-50 sm:block"
-            >
-              Backup
-            </button>
-            <details className="relative">
-              <summary className="flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50">
-                ⋯
-              </summary>
-              <div className="absolute right-0 z-40 mt-2 w-52 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
-                <button
-                  onClick={exportJSON}
-                  className="w-full rounded-xl px-3 py-2 text-left text-sm hover:bg-slate-50 sm:hidden"
-                >
-                  バックアップ
-                </button>
-                <button
-                  onClick={importJSON}
-                  className="w-full rounded-xl px-3 py-2 text-left text-sm hover:bg-slate-50"
-                >
-                  復元
-                </button>
-                <button
-                  onClick={resetToday}
-                  className="w-full rounded-xl px-3 py-2 text-left text-sm hover:bg-slate-50"
-                >
-                  今日の入力をリセット
-                </button>
-                <button
-                  onClick={hardReset}
-                  className="w-full rounded-xl px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
-                >
-                  全データをリセット
-                </button>
-              </div>
-            </details>
-          </div>
-        </header>
+  const standardVisibleExercises = visibleExercises.filter(
+    ({ exercise }) => exercise.isBase
+  );
 
-        {/* XP / Level */}
-        <section className="rounded-[24px] border border-white/70 bg-white p-5 shadow-[0_10px_35px_rgba(15,23,42,0.06)]">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="text-xs font-semibold tracking-[0.08em] text-slate-400">
-                TOTAL EXPERIENCE
-              </div>
-              <div className="mt-1 flex items-end gap-2">
-                <div className="text-4xl font-semibold tracking-tight text-slate-950">
-                  {pretty(totalXP)}
+  const selectedEntry =
+    selectedExerciseKey === null
+      ? null
+      : exercises
+          .map((exercise, originalIndex) => ({ exercise, originalIndex }))
+          .find(({ exercise }) => exercise.key === selectedExerciseKey) ?? null;
+
+  const openExerciseDetail = (exerciseKey: string) => {
+    setSelectedExerciseKey(exerciseKey);
+    setDetailEditMode(false);
+    setViewMode("exercise");
+  };
+
+  const startTraining = () => {
+    setOpenExerciseKey(visibleExercises[0]?.exercise.key ?? null);
+    setSelectedExerciseKey(null);
+    setDetailEditMode(false);
+    setViewMode("training");
+  };
+
+  const appShell =
+    "min-h-screen bg-[#f3f5f7] text-slate-900 notranslate selection:bg-sky-100";
+  const pageWidth = "mx-auto w-full max-w-md";
+  const card =
+    "rounded-[24px] border border-slate-100 bg-white shadow-[0_12px_32px_rgba(15,23,42,0.055)]";
+
+  const BrandHeader = ({ compact = false }: { compact?: boolean }) => (
+    <header
+      className={`${card} flex items-center justify-between ${
+        compact ? "px-4 py-3" : "px-5 py-4"
+      }`}
+    >
+      <div className="text-slate-800">
+        <ForgeLogo compact={compact} />
+      </div>
+      <details className="relative">
+        <summary className="flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-2xl border border-slate-200 bg-white text-lg text-slate-600">
+          ⋯
+        </summary>
+        <div className="absolute right-0 z-[80] mt-2 w-52 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
+          <button
+            onClick={exportJSON}
+            className="w-full rounded-xl px-3 py-2 text-left text-sm hover:bg-slate-50"
+          >
+            バックアップ
+          </button>
+          <button
+            onClick={importJSON}
+            className="w-full rounded-xl px-3 py-2 text-left text-sm hover:bg-slate-50"
+          >
+            復元
+          </button>
+          <button
+            onClick={resetToday}
+            className="w-full rounded-xl px-3 py-2 text-left text-sm hover:bg-slate-50"
+          >
+            今日の入力をリセット
+          </button>
+          <button
+            onClick={hardReset}
+            className="w-full rounded-xl px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
+          >
+            全データをリセット
+          </button>
+        </div>
+      </details>
+    </header>
+  );
+
+  const TopBar = ({
+    titleText,
+    onBack,
+  }: {
+    titleText: string;
+    onBack: () => void;
+  }) => (
+    <header className="sticky top-0 z-40 border-b border-slate-100 bg-white/95 backdrop-blur">
+      <div className={`${pageWidth} flex h-16 items-center justify-between px-4`}>
+        <button
+          onClick={onBack}
+          className="flex h-10 w-10 items-center justify-center rounded-full text-2xl text-slate-700 active:bg-slate-100"
+          aria-label="戻る"
+        >
+          ‹
+        </button>
+        <div className="text-base font-semibold tracking-wide text-slate-900">
+          {titleText}
+        </div>
+        <button
+          onClick={() => setViewMode("home")}
+          className="flex h-10 w-10 items-center justify-center rounded-full text-lg text-slate-400 active:bg-slate-100"
+          aria-label="ホーム"
+        >
+          ···
+        </button>
+      </div>
+    </header>
+  );
+
+  const BottomXPBar = () => (
+    <div className="fixed inset-x-0 bottom-0 z-50 border-t border-slate-700/30 bg-[#172238]/[0.97] px-4 py-3 text-white shadow-[0_-10px_30px_rgba(15,23,42,0.18)] backdrop-blur">
+      <div className={`${pageWidth} flex items-center gap-3`}>
+        <div className="min-w-0 flex-1">
+          <div className="text-[10px] uppercase tracking-[0.18em] text-slate-400">
+            TODAY'S XP
+          </div>
+          <div className="mt-0.5 flex items-baseline gap-3">
+            <span className="text-xl font-semibold">{pretty(calc.finalXP)} XP</span>
+            <span className="text-[11px] text-slate-400">
+              筋トレ {pretty(calc.strengthXP)} / ラン {pretty(calc.runXP)}
+            </span>
+          </div>
+        </div>
+        <button
+          onClick={commitToday}
+          className="rounded-2xl bg-gradient-to-r from-sky-500 to-blue-600 px-5 py-3 text-sm font-semibold shadow-lg shadow-sky-950/20 active:scale-[0.98]"
+        >
+          保存 →
+        </button>
+      </div>
+    </div>
+  );
+
+  let screen: JSX.Element;
+
+  if (viewMode === "home") {
+    screen = (
+      <div className={`${appShell} px-3 pb-8 pt-3`}>
+        <div className={`${pageWidth} space-y-3`}>
+          <BrandHeader />
+
+          <section className={`${card} p-5`}>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-[11px] font-semibold tracking-[0.12em] text-slate-400">
+                  TOTAL EXPERIENCE
                 </div>
-                <div className="pb-1 text-lg font-semibold text-slate-500">XP</div>
+                <div className="mt-1 flex items-end gap-2">
+                  <span className="text-[38px] font-semibold leading-none tracking-[-0.04em] text-slate-950">
+                    {pretty(totalXP)}
+                  </span>
+                  <span className="pb-1 text-lg font-semibold text-slate-500">XP</span>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-[11px] font-semibold tracking-[0.1em] text-slate-400">
+                  LEVEL
+                </div>
+                <div className="mt-1 text-[32px] font-semibold leading-none text-slate-950">
+                  Lv {lv.level}
+                </div>
+                <div className="mt-2 max-w-[140px] truncate text-xs text-slate-500">
+                  {title}
+                </div>
               </div>
             </div>
-            <div className="text-right">
-              <div className="text-xs font-semibold text-slate-400">LEVEL</div>
-              <div className="text-3xl font-semibold text-slate-900">Lv {lv.level}</div>
-              <div className="mt-1 max-w-[150px] truncate text-xs text-slate-500">
-                {title}
+
+            <div className="mt-5">
+              <div className="mb-2 flex items-center justify-between text-xs text-slate-500">
+                <span>次のレベルまで {pretty(Math.max(0, lv.toNext - lv.into))} XP</span>
+                <span>Lv {Math.min(lv.level + 1, LEVEL_NEEDS.length + 1)}</span>
+              </div>
+              <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-sky-500 to-blue-600"
+                  style={{ width: `${levelProgress}%` }}
+                />
               </div>
             </div>
-          </div>
+          </section>
 
-          <div className="mt-4">
-            <div className="mb-2 flex items-center justify-between text-xs text-slate-500">
-              <span>次のレベルまで {pretty(Math.max(0, lv.toNext - lv.into))} XP</span>
-              <span>Lv {Math.min(lv.level + 1, LEVEL_NEEDS.length + 1)}</span>
+          <section className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => lastPattern && selectPattern(lastPattern)}
+              className={`${card} p-4 text-left active:scale-[0.99]`}
+            >
+              <div className="text-[11px] font-semibold text-slate-400">
+                前回のトレーニング
+              </div>
+              <div className="mt-1 text-base font-semibold">
+                {lastPattern ? `${lastPattern}メニュー` : "記録なし"}
+              </div>
+            </button>
+            <button
+              onClick={() => selectPattern(recommendedPattern)}
+              className="rounded-[24px] border border-sky-100 bg-gradient-to-br from-white to-sky-50 p-4 text-left shadow-[0_12px_32px_rgba(15,23,42,0.05)] active:scale-[0.99]"
+            >
+              <div className="text-[11px] font-semibold text-sky-500">
+                あなたへのおすすめ
+              </div>
+              <div className="mt-1 text-base font-semibold">
+                {recommendedPattern}メニュー
+              </div>
+            </button>
+          </section>
+
+          <section className={`${card} p-5`}>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-semibold">本日のメニュー</h2>
+                <input
+                  type="date"
+                  value={todayDate}
+                  onChange={(event: ChangeEvent<HTMLInputElement>) => handleDateChange(event.target.value)}
+                  className="mt-2 border-0 bg-transparent p-0 text-xs text-slate-400 outline-none"
+                />
+              </div>
+              <div className="max-w-[48%] text-right text-xs leading-5 text-slate-500">
+                “{motivationPhrase}”
+              </div>
             </div>
-            <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-sky-500 to-blue-600 transition-all"
-                style={{ width: `${levelProgress}%` }}
-              />
+
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              {(["A", "B"] as WorkoutPattern[]).map((pattern) => {
+                const selected = currentPattern === pattern;
+                return (
+                  <button
+                    key={pattern}
+                    onClick={() => selectPattern(pattern)}
+                    className={`rounded-2xl border px-4 py-3 text-left transition ${
+                      selected
+                        ? "border-[#1f2d43] bg-[#1f2d43] text-white shadow-lg shadow-slate-300/40"
+                        : "border-slate-200 bg-slate-50 text-slate-700"
+                    }`}
+                  >
+                    <div className="text-base font-semibold">{pattern}メニュー</div>
+                    <div
+                      className={`mt-1 text-[11px] ${
+                        selected ? "text-slate-300" : "text-slate-400"
+                      }`}
+                    >
+                      {pattern === "A" ? "胸・肩・腕" : "背中・腕・体幹・脚"}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
-          </div>
-        </section>
 
-        {/* Previous / recommendation */}
-        <section className="mt-3 grid grid-cols-2 gap-3">
-          <button
-            onClick={() => lastPattern && selectPattern(lastPattern)}
-            className="rounded-[22px] border border-white/70 bg-white p-4 text-left shadow-[0_8px_28px_rgba(15,23,42,0.05)] transition active:scale-[0.99]"
-          >
-            <div className="text-[11px] font-semibold text-slate-400">前回のトレーニング</div>
-            <div className="mt-1 text-base font-semibold text-slate-900">
-              {lastPattern ? `${lastPattern}メニュー` : "記録なし"}
-            </div>
-          </button>
-          <button
-            onClick={() => selectPattern(recommendedPattern)}
-            className="rounded-[22px] border border-sky-100 bg-gradient-to-br from-white to-sky-50 p-4 text-left shadow-[0_8px_28px_rgba(15,23,42,0.05)] transition active:scale-[0.99]"
-          >
-            <div className="text-[11px] font-semibold text-sky-500">あなたへのおすすめ</div>
-            <div className="mt-1 text-base font-semibold text-slate-900">
-              {recommendedPattern}メニュー
-            </div>
-          </button>
-        </section>
-
-        {/* Menu selector */}
-        <section className="mt-3 rounded-[24px] border border-white/70 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.06)]">
-          <div className="mb-3 flex items-end justify-between gap-3">
-            <div>
-              <div className="text-lg font-semibold">本日のメニュー</div>
-              <input
-                type="date"
-                value={todayDate}
-                onChange={(event) => handleDateChange(event.target.value)}
-                className="mt-1 border-0 bg-transparent p-0 text-xs text-slate-400 outline-none"
-              />
-            </div>
-            <div className="max-w-[52%] text-right text-xs leading-5 text-slate-500">
-              {motivationPhrase}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            {(["A", "B"] as WorkoutPattern[]).map((pattern) => {
-              const selected = currentPattern === pattern;
-              return (
-                <button
-                  key={pattern}
-                  onClick={() => selectPattern(pattern)}
-                  className={`rounded-2xl border px-4 py-3 text-left transition ${
-                    selected
-                      ? "border-slate-800 bg-slate-800 text-white shadow-lg shadow-slate-300/40"
-                      : "border-slate-200 bg-slate-50 text-slate-700"
-                  }`}
-                >
-                  <div className="text-base font-semibold">{pattern}メニュー</div>
-                  <div className={`mt-1 text-[11px] ${selected ? "text-slate-300" : "text-slate-400"}`}>
-                    {pattern === "A" ? "胸・肩・腕" : "背中・腕・体幹・脚"}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="mt-4">
-            <div className="mb-2 flex items-center justify-between text-sm">
-              <span className="font-semibold text-slate-700">今日の進捗</span>
-              <span className="font-semibold text-slate-600">
-                {completedBaseExercises}/{currentBaseExercises.length}種目 ・ {workoutProgress}%
-              </span>
-            </div>
-            <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-              <div
-                className="h-full rounded-full bg-sky-500 transition-all"
-                style={{ width: `${workoutProgress}%` }}
-              />
-            </div>
-          </div>
-        </section>
-
-        {/* Exercises */}
-        <section className="mt-3 space-y-3">
-          {visibleExercises.map(({ exercise, originalIndex }, visualIndex) => {
-            const isOpen = openExerciseKey === exercise.key;
-            const doneSets = exercise.sets.filter((set) => set.done).length;
-            const firstSet = exercise.sets[0];
-
-            return (
-              <article
-                key={exercise.key}
-                className="overflow-hidden rounded-[24px] border border-white/70 bg-white shadow-[0_10px_35px_rgba(15,23,42,0.055)]"
-              >
-                <button
-                  type="button"
-                  onClick={() =>
-                    setOpenExerciseKey((prev) =>
-                      prev === exercise.key ? null : exercise.key
-                    )
-                  }
-                  className="flex w-full items-center gap-3 p-4 text-left"
-                >
-                  <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${
-                    doneSets > 0 ? "bg-sky-500 text-white" : "bg-slate-100 text-slate-500"
-                  }`}>
-                    {exercise.isBase ? visualIndex + 1 : "+"}
-                  </div>
-
-                  <MuscleMap exercise={exercise} />
-
-                  <div className="min-w-0 flex-1">
-                    {exercise.isBase ? (
-                      <div className="truncate text-base font-semibold text-slate-900">
-                        {exercise.name}
-                      </div>
-                    ) : (
-                      <input
-                        value={exercise.name}
-                        onClick={(event) => event.stopPropagation()}
-                        onChange={(event) =>
-                          updateExerciseName(originalIndex, event.target.value)
-                        }
-                        className="w-full rounded-lg border border-slate-200 px-2 py-1 text-base font-semibold outline-none focus:border-sky-400"
-                      />
-                    )}
-                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-400">
-                      <span>
-                        前回{" "}
-                        {firstSet
-                          ? `${firstSet.weight}kg × ${firstSet.reps} × ${exercise.sets.length}`
-                          : "—"}
+            <div className="mt-5 grid grid-cols-[1fr_105px] gap-3">
+              <div>
+                <div className="mb-2 text-sm font-semibold">
+                  {currentPattern}メニューの種目
+                </div>
+                <div className="space-y-2">
+                  {standardVisibleExercises.map(({ exercise }, index) => (
+                    <button
+                      key={exercise.key}
+                      onClick={() => openExerciseDetail(exercise.key)}
+                      className="flex w-full items-center gap-2 text-left"
+                    >
+                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-sky-500 text-[11px] font-semibold text-white">
+                        {index + 1}
                       </span>
-                      <span>{doneSets}/{exercise.sets.length}セット完了</span>
-                    </div>
-                  </div>
-
-                  <div className={`text-xl text-slate-300 transition ${isOpen ? "rotate-180" : ""}`}>⌄</div>
-                </button>
-
-                {isOpen && (
-                  <div className="border-t border-slate-100 px-4 pb-4 pt-3">
-                    {!exercise.isBase && (
-                      <div className="mb-3 flex flex-wrap items-center gap-2">
-                        <select
-                          value={exercise.pattern}
-                          onChange={(event) =>
-                            updateExercisePattern(
-                              originalIndex,
-                              event.target.value as WorkoutPattern
-                            )
-                          }
-                          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
-                        >
-                          <option value="A">Aメニュー</option>
-                          <option value="B">Bメニュー</option>
-                        </select>
-                        <button
-                          onClick={() => deleteExercise(exercise.key)}
-                          className="rounded-xl bg-red-50 px-3 py-2 text-sm font-semibold text-red-600"
-                        >
-                          種目を削除
-                        </button>
-                      </div>
-                    )}
-
-                    <div className="space-y-2">
-                      {exercise.sets.map((set, setIndex) => (
-                        <div
-                          key={`${exercise.key}-${setIndex}`}
-                          className="grid grid-cols-[52px_1fr_1fr_auto] items-center gap-2 rounded-2xl bg-slate-50 p-2.5"
-                        >
-                          <div className="text-xs font-semibold text-slate-500">
-                            Set {setIndex + 1}
-                          </div>
-                          <div className="relative">
-                            <input
-                              type="number"
-                              value={set.weight}
-                              onChange={(event) =>
-                                updateSetField(
-                                  originalIndex,
-                                  setIndex,
-                                  "weight",
-                                  Number(event.target.value || 0)
-                                )
-                              }
-                              className="h-10 w-full rounded-xl border border-slate-200 bg-white px-2 pr-7 text-right text-sm font-semibold outline-none focus:border-sky-400"
-                            />
-                            <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">
-                              kg
-                            </span>
-                          </div>
-                          <div className="relative">
-                            <input
-                              type="number"
-                              value={set.reps}
-                              onChange={(event) =>
-                                updateSetField(
-                                  originalIndex,
-                                  setIndex,
-                                  "reps",
-                                  Number(event.target.value || 0)
-                                )
-                              }
-                              className="h-10 w-full rounded-xl border border-slate-200 bg-white px-2 pr-7 text-right text-sm font-semibold outline-none focus:border-sky-400"
-                            />
-                            <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">
-                              回
-                            </span>
-                          </div>
-                          <button
-                            onClick={() => toggleSetDone(originalIndex, setIndex)}
-                            className="flex items-center gap-2 rounded-xl px-2 py-1.5"
-                          >
-                            <SetStatusIcon done={set.done} />
-                            <span className={`hidden text-xs font-semibold sm:inline ${
-                              set.done ? "text-emerald-600" : "text-slate-400"
-                            }`}>
-                              {set.done ? "完了" : "未完了"}
-                            </span>
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="mt-3 flex gap-2">
-                      <button
-                        onClick={() => addSet(originalIndex)}
-                        className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-600"
-                      >
-                        ＋セット
-                      </button>
-                      <button
-                        onClick={() => removeLastSet(originalIndex)}
-                        className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-600"
-                      >
-                        −セット
-                      </button>
-                    </div>
-
-                    {/* Video / memo: view first, edit only when requested */}
-                    <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                      <button
-                        onClick={() =>
-                          setOpenVideoManagers((prev) => ({
-                            ...prev,
-                            [exercise.key]: !prev[exercise.key],
-                          }))
-                        }
-                        className="flex w-full items-center justify-between bg-slate-50 px-4 py-3 text-left text-sm font-semibold text-slate-700 focus:outline-none"
-                      >
-                        <span>フォーム参考動画・メモ</span>
-                        <span className="flex items-center gap-2 text-xs font-normal text-slate-400">
-                          動画 {exercise.formVideos.length}件
-                          <span
-                            className={`transition-transform ${
-                              openVideoManagers[exercise.key] ? "rotate-180" : ""
-                            }`}
-                          >
-                            ⌄
-                          </span>
-                        </span>
-                      </button>
-
-                      {openVideoManagers[exercise.key] && (
-                        <div className="space-y-4 border-t border-slate-200 p-3 sm:p-4">
-                          {/* Normal workout view: one tap to play */}
-                          <div>
-                            <div className="mb-2 flex items-center justify-between">
-                              <div className="text-xs font-semibold text-slate-500">
-                                フォーム参考動画
-                              </div>
-                              <button
-                                onClick={() =>
-                                  setEditVideoManagers((prev) => ({
-                                    ...prev,
-                                    [exercise.key]: !prev[exercise.key],
-                                  }))
-                                }
-                                className="rounded-lg px-2 py-1 text-xs font-semibold text-sky-600 hover:bg-sky-50"
-                              >
-                                {editVideoManagers[exercise.key] ? "編集を閉じる" : "編集"}
-                              </button>
-                            </div>
-
-                            {exercise.formVideos.length === 0 ? (
-                              <div className="rounded-xl bg-slate-50 px-3 py-3 text-xs text-slate-400">
-                                参考動画はまだ登録されていません。
-                              </div>
-                            ) : (
-                              <div className="overflow-hidden rounded-xl border border-slate-200">
-                                {exercise.formVideos.map((video, videoIndex) => (
-                                  <button
-                                    key={video.id}
-                                    type="button"
-                                    onClick={() => openFormVideo(video)}
-                                    className={`flex w-full items-center gap-3 px-3 py-3 text-left transition hover:bg-sky-50 active:bg-sky-100 ${
-                                      videoIndex > 0 ? "border-t border-slate-100" : ""
-                                    }`}
-                                  >
-                                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sky-500 text-sm text-white">
-                                      ▶
-                                    </span>
-                                    <span className="min-w-0 flex-1">
-                                      <span className="block truncate text-sm font-semibold text-slate-800">
-                                        {video.title || `参考動画 ${videoIndex + 1}`}
-                                      </span>
-                                      <span className="mt-0.5 block text-[11px] text-slate-400">
-                                        {formatStartTime(video.startSeconds)}から再生
-                                      </span>
-                                    </span>
-                                    <span className="text-slate-300">›</span>
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Memo is primarily for quick reference during training */}
-                          <div>
-                            <div className="mb-2 text-xs font-semibold text-slate-500">
-                              メモ
-                            </div>
-                            <div className="rounded-xl bg-slate-50 px-3 py-3 text-sm leading-6 text-slate-600">
-                              {exercise.formMemoDraft ||
-                                exercise.lastFormMemo ||
-                                "まだメモはありません"}
-                            </div>
-                          </div>
-
-                          {/* Editing controls are hidden during normal workout use */}
-                          {editVideoManagers[exercise.key] && (
-                            <div className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50/60 p-3">
-                              <div className="text-xs font-semibold tracking-wide text-slate-500">
-                                動画・メモを編集
-                              </div>
-
-                              {exercise.formVideos.map((video, videoIndex) => (
-                                <div
-                                  key={`edit-${video.id}`}
-                                  className="rounded-2xl border border-slate-200 bg-white p-3"
-                                >
-                                  <div className="flex items-start gap-2">
-                                    <input
-                                      value={video.title}
-                                      onChange={(event) =>
-                                        updateFormVideo(originalIndex, video.id, {
-                                          title: event.target.value,
-                                        })
-                                      }
-                                      placeholder="動画名"
-                                      className="min-w-0 flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-400"
-                                    />
-                                    <button
-                                      onClick={() =>
-                                        moveFormVideo(originalIndex, video.id, -1)
-                                      }
-                                      disabled={videoIndex === 0}
-                                      className="rounded-lg bg-slate-100 px-2 py-2 text-xs disabled:opacity-30"
-                                    >
-                                      ↑
-                                    </button>
-                                    <button
-                                      onClick={() =>
-                                        moveFormVideo(originalIndex, video.id, 1)
-                                      }
-                                      disabled={
-                                        videoIndex === exercise.formVideos.length - 1
-                                      }
-                                      className="rounded-lg bg-slate-100 px-2 py-2 text-xs disabled:opacity-30"
-                                    >
-                                      ↓
-                                    </button>
-                                  </div>
-
-                                  <input
-                                    value={video.url}
-                                    onChange={(event) =>
-                                      updateFormVideo(originalIndex, video.id, {
-                                        url: event.target.value,
-                                      })
-                                    }
-                                    placeholder="YouTube URL"
-                                    className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-400"
-                                  />
-
-                                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                                    <span className="text-xs text-slate-400">開始</span>
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      value={Math.floor(video.startSeconds / 60)}
-                                      onChange={(event) =>
-                                        updateVideoTimePart(
-                                          originalIndex,
-                                          video,
-                                          "minutes",
-                                          Number(event.target.value || 0)
-                                        )
-                                      }
-                                      className="w-16 rounded-xl border border-slate-200 bg-white px-2 py-2 text-center text-sm"
-                                    />
-                                    <span className="text-xs text-slate-400">分</span>
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      max="59"
-                                      value={video.startSeconds % 60}
-                                      onChange={(event) =>
-                                        updateVideoTimePart(
-                                          originalIndex,
-                                          video,
-                                          "seconds",
-                                          Number(event.target.value || 0)
-                                        )
-                                      }
-                                      className="w-16 rounded-xl border border-slate-200 bg-white px-2 py-2 text-center text-sm"
-                                    />
-                                    <span className="text-xs text-slate-400">秒</span>
-                                  </div>
-
-                                  <div className="mt-3 flex items-center justify-between gap-2">
-                                    <button
-                                      onClick={() => openFormVideo(video)}
-                                      className="rounded-xl bg-sky-500 px-3 py-2 text-xs font-semibold text-white"
-                                    >
-                                      ▶ {formatStartTime(video.startSeconds)}から確認
-                                    </button>
-                                    <button
-                                      onClick={() =>
-                                        removeFormVideo(originalIndex, video.id)
-                                      }
-                                      className="rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold text-red-600"
-                                    >
-                                      削除
-                                    </button>
-                                  </div>
-                                </div>
-                              ))}
-
-                              <button
-                                onClick={() => addFormVideo(originalIndex)}
-                                className="rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white"
-                              >
-                                ＋参考動画を追加
-                              </button>
-
-                              <div>
-                                <div className="mb-2 text-xs font-semibold text-slate-500">
-                                  今日のメモ
-                                </div>
-                                {exercise.lastFormMemo && (
-                                  <div className="mb-2 rounded-xl bg-white px-3 py-2 text-xs leading-5 text-slate-500">
-                                    前回：{exercise.lastFormMemo}
-                                  </div>
-                                )}
-                                <textarea
-                                  value={exercise.formMemoDraft}
-                                  onChange={(event) =>
-                                    updateFormMemoDraft(
-                                      originalIndex,
-                                      event.target.value
-                                    )
-                                  }
-                                  placeholder="今日気づいたフォームのポイント"
-                                  rows={2}
-                                  className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-sky-400"
-                                />
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
+                      <span className="truncate text-sm font-medium text-slate-700">
+                        {exercise.name}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex items-end justify-center">
+                {standardVisibleExercises[0] && (
+                  <div className="opacity-80">
+                    <MuscleMap
+                      exercise={standardVisibleExercises[0].exercise}
+                      size="lg"
+                    />
                   </div>
                 )}
-              </article>
-            );
-          })}
-        </section>
-
-        <button
-          onClick={addExtraExercise}
-          className="mt-3 w-full rounded-[20px] border border-dashed border-slate-300 bg-white/60 px-4 py-3 text-sm font-semibold text-slate-500"
-        >
-          ＋{currentPattern}メニューに自由種目を追加
-        </button>
-
-        {/* Run */}
-        <section className="mt-3 rounded-[24px] border border-white/70 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <div className="text-sm font-semibold text-slate-800">ラントレ距離</div>
-              <div className="mt-1 text-xs text-slate-400">1m = 1XP</div>
+              </div>
             </div>
-            <div className="relative w-36">
-              <input
-                type="number"
-                value={runMeters}
-                onChange={(event) =>
-                  updateRunMeters(Number(event.target.value || 0))
-                }
-                className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 pr-8 text-right font-semibold outline-none focus:border-sky-400"
-              />
-              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">
-                m
-              </span>
-            </div>
-          </div>
-        </section>
 
-        {/* Recent sessions */}
-        <details className="mt-3 rounded-[24px] border border-white/70 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
-          <summary className="cursor-pointer list-none text-sm font-semibold text-slate-800">
-            最近のセッション
-          </summary>
-          <div className="mt-3 space-y-2">
-            {notes.length === 0 ? (
-              <div className="text-xs text-slate-400">まだ記録がありません</div>
-            ) : (
-              notes.slice(0, 8).map((note, index) => (
+            <div className="mt-5">
+              <div className="mb-2 flex items-center justify-between text-sm">
+                <span className="font-semibold text-slate-700">今日の進捗</span>
+                <span className="font-semibold text-slate-600">
+                  {completedBaseExercises}/{currentBaseExercises.length}
+                </span>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                <div
+                  className="h-full rounded-full bg-sky-500"
+                  style={{ width: `${workoutProgress}%` }}
+                />
+              </div>
+            </div>
+
+            <button
+              onClick={startTraining}
+              className="mt-4 w-full rounded-2xl bg-gradient-to-r from-sky-500 to-blue-600 px-5 py-3.5 text-sm font-semibold text-white shadow-lg shadow-sky-900/15 active:scale-[0.99]"
+            >
+              トレーニング開始 →
+            </button>
+          </section>
+
+          <details className={`${card} p-4`}>
+            <summary className="cursor-pointer list-none text-sm font-semibold text-slate-600">
+              最近のセッション
+            </summary>
+            <div className="mt-3 space-y-2">
+              {notes.slice(0, 6).map((note, index) => (
                 <div
                   key={`${note.date}-${index}`}
                   className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2"
                 >
-                  <div>
-                    <div className="text-xs text-slate-400">
-                      {note.date} {note.pattern ? `・${note.pattern}メニュー` : ""}
-                    </div>
-                    <div className="text-xs text-slate-500">{note.memo}</div>
+                  <div className="text-xs text-slate-500">
+                    {note.date}
+                    {note.pattern ? ` ・ ${note.pattern}メニュー` : ""}
                   </div>
-                  <div className="font-semibold text-slate-800">
-                    +{pretty(note.xp)} XP
-                  </div>
+                  <div className="text-sm font-semibold">+{pretty(note.xp)} XP</div>
                 </div>
-              ))
-            )}
-          </div>
-        </details>
-      </div>
-
-      {/* Fixed bottom summary */}
-      <div className="fixed inset-x-0 bottom-0 z-50 border-t border-slate-700/30 bg-slate-900/95 px-3 py-3 text-white shadow-[0_-10px_30px_rgba(15,23,42,0.2)] backdrop-blur">
-        <div className="mx-auto flex max-w-3xl items-center gap-3">
-          <div className="min-w-0 flex-1">
-            <div className="text-[10px] uppercase tracking-[0.14em] text-slate-400">
-              Today's XP
+              ))}
+              {notes.length === 0 && (
+                <div className="text-xs text-slate-400">まだ記録がありません</div>
+              )}
             </div>
-            <div className="mt-0.5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-              <span className="text-xl font-semibold">{pretty(calc.finalXP)} XP</span>
-              <span className="text-[11px] text-slate-400">
-                筋トレ {pretty(calc.strengthXP)} / ラン {pretty(calc.runXP)}
-              </span>
-            </div>
-          </div>
-          <button
-            onClick={commitToday}
-            className="rounded-2xl bg-gradient-to-r from-sky-500 to-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-sky-900/20 active:scale-[0.98]"
-          >
-            保存 →
-          </button>
+          </details>
         </div>
       </div>
+    );
+  } else if (viewMode === "training") {
+    screen = (
+      <div className={`${appShell} pb-28`}>
+        <TopBar titleText={`${currentPattern}メニュー`} onBack={() => setViewMode("home")} />
+
+        <main className={`${pageWidth} px-3 py-4`}>
+          <section className="mb-4">
+            <div className="flex items-center justify-between">
+              <div className="text-xs text-slate-500">
+                {currentPattern === "A" ? "胸・肩・腕" : "背中・腕・体幹・脚"}を鍛えるメニュー
+              </div>
+              <div className="text-lg font-semibold text-slate-800">
+                <span className="text-sky-500">{completedBaseExercises}</span>
+                <span className="text-slate-400"> / </span>
+                {currentBaseExercises.length} 種目完了
+              </div>
+            </div>
+            <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-slate-200">
+              <div
+                className="h-full rounded-full bg-sky-500"
+                style={{ width: `${workoutProgress}%` }}
+              />
+            </div>
+          </section>
+
+          <section className="space-y-3">
+            {visibleExercises.map(({ exercise, originalIndex }, visualIndex) => {
+              const isOpen = openExerciseKey === exercise.key;
+              const doneSets = exercise.sets.filter((set) => set.done).length;
+              const firstSet = exercise.sets[0];
+
+              return (
+                <article
+                  key={exercise.key}
+                  className={`${card} overflow-hidden`}
+                >
+                  <div className="flex items-center gap-3 p-3">
+                    <button
+                      onClick={() =>
+                        setOpenExerciseKey((prev) =>
+                          prev === exercise.key ? null : exercise.key
+                        )
+                      }
+                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${
+                        doneSets > 0
+                          ? "bg-emerald-500 text-white"
+                          : exercise.isBase
+                          ? "bg-sky-500 text-white"
+                          : "bg-slate-200 text-slate-500"
+                      }`}
+                    >
+                      {doneSets === exercise.sets.length && doneSets > 0
+                        ? "✓"
+                        : exercise.isBase
+                        ? visualIndex + 1
+                        : "+"}
+                    </button>
+
+                    <button
+                      onClick={() => openExerciseDetail(exercise.key)}
+                      className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                    >
+                      <MuscleMap exercise={exercise} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-base font-semibold text-slate-900">
+                          {exercise.name}
+                        </span>
+                        <span className="mt-1 block text-[11px] text-slate-400">
+                          前回{" "}
+                          {firstSet
+                            ? `${firstSet.weight}kg × ${firstSet.reps} × ${exercise.sets.length}`
+                            : "—"}
+                        </span>
+                      </span>
+                    </button>
+
+                    <button
+                      onClick={() =>
+                        setOpenExerciseKey((prev) =>
+                          prev === exercise.key ? null : exercise.key
+                        )
+                      }
+                      className="flex h-9 w-9 items-center justify-center rounded-full text-xl text-slate-300"
+                    >
+                      {isOpen ? "⌃" : "›"}
+                    </button>
+                  </div>
+
+                  {isOpen && (
+                    <div className="border-t border-slate-100 px-3 pb-3 pt-2">
+                      <div className="space-y-1.5">
+                        {exercise.sets.map((set, setIndex) => (
+                          <div
+                            key={`${exercise.key}-${setIndex}`}
+                            className="grid grid-cols-[52px_1fr_1fr_auto] items-center gap-2 rounded-xl bg-slate-50 px-2.5 py-2"
+                          >
+                            <div className="text-xs font-medium text-slate-500">
+                              Set {setIndex + 1}
+                            </div>
+                            <div className="text-right text-xs text-slate-500">
+                              {set.weight}kg
+                            </div>
+                            <div className="text-right text-xs text-slate-500">
+                              {set.reps}回
+                            </div>
+                            <button
+                              onClick={() => toggleSetDone(originalIndex, setIndex)}
+                              className="rounded-full"
+                            >
+                              <SetStatusIcon done={set.done} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="mt-3 flex items-center gap-2">
+                        <button
+                          onClick={() => openExerciseDetail(exercise.key)}
+                          className="rounded-xl bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-600"
+                        >
+                          ▶ 参考動画
+                        </button>
+                        <div className="min-w-0 flex-1 truncate text-right text-[11px] text-slate-400">
+                          {exercise.lastFormMemo
+                            ? `前回メモ：${exercise.lastFormMemo}`
+                            : "前回メモ：なし"}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </article>
+              );
+            })}
+          </section>
+
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <button
+              onClick={addExtraExercise}
+              className="rounded-2xl border border-dashed border-slate-300 bg-white px-3 py-3 text-xs font-semibold text-slate-500"
+            >
+              ＋自由種目を追加
+            </button>
+            <div className={`${card} flex items-center gap-2 px-3 py-2`}>
+              <span className="text-xs font-semibold text-slate-500">ラン</span>
+              <input
+                type="number"
+                value={runMeters}
+                onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                  updateRunMeters(Number(event.target.value || 0))
+                }
+                className="min-w-0 flex-1 border-0 bg-transparent text-right text-sm font-semibold outline-none"
+              />
+              <span className="text-[10px] text-slate-400">m</span>
+            </div>
+          </div>
+        </main>
+
+        <BottomXPBar />
+      </div>
+    );
+  } else if (selectedEntry) {
+    const { exercise, originalIndex } = selectedEntry;
+    const firstSet = exercise.sets[0];
+
+    screen = (
+      <div className={`${appShell} pb-28`}>
+        <TopBar
+          titleText=""
+          onBack={() => {
+            setDetailEditMode(false);
+            setViewMode("training");
+          }}
+        />
+
+        <main className={`${pageWidth} px-3 pb-8 pt-3`}>
+          <section className={`${card} overflow-hidden p-5`}>
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0 flex-1">
+                {exercise.isBase ? (
+                  <h1 className="text-2xl font-semibold tracking-tight text-slate-950">
+                    {exercise.name}
+                  </h1>
+                ) : (
+                  <input
+                    value={exercise.name}
+                    onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                      updateExerciseName(originalIndex, event.target.value)
+                    }
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xl font-semibold outline-none focus:border-sky-400"
+                  />
+                )}
+                <div className="mt-1 text-xs font-medium text-slate-400">
+                  {exercise.pattern}メニュー
+                </div>
+              </div>
+              <MuscleMap exercise={exercise} size="lg" />
+            </div>
+
+            <div className="mt-4 rounded-2xl bg-slate-50 p-4">
+              <div className="text-[11px] font-semibold text-slate-400">
+                前回の記録
+              </div>
+              <div className="mt-1 text-xl font-semibold">
+                {firstSet
+                  ? `${firstSet.weight}kg × ${firstSet.reps} × ${exercise.sets.length}`
+                  : "—"}
+              </div>
+            </div>
+          </section>
+
+          <section className={`${card} mt-3 p-4`}>
+            <h2 className="text-base font-semibold">セットを記録</h2>
+
+            <div className="mt-3 space-y-2">
+              {exercise.sets.map((set, setIndex) => (
+                <div
+                  key={`${exercise.key}-${setIndex}`}
+                  className="grid grid-cols-[50px_1fr_1fr_auto] items-center gap-2"
+                >
+                  <div className="text-sm font-medium">Set {setIndex + 1}</div>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      value={set.weight}
+                      onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                        updateSetField(
+                          originalIndex,
+                          setIndex,
+                          "weight",
+                          Number(event.target.value || 0)
+                        )
+                      }
+                      className="h-11 w-full rounded-xl border border-slate-200 bg-white px-2 pr-7 text-right font-semibold outline-none focus:border-sky-400"
+                    />
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">
+                      kg
+                    </span>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      value={set.reps}
+                      onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                        updateSetField(
+                          originalIndex,
+                          setIndex,
+                          "reps",
+                          Number(event.target.value || 0)
+                        )
+                      }
+                      className="h-11 w-full rounded-xl border border-slate-200 bg-white px-2 pr-7 text-right font-semibold outline-none focus:border-sky-400"
+                    />
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">
+                      回
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => toggleSetDone(originalIndex, setIndex)}
+                    className="rounded-full"
+                  >
+                    <SetStatusIcon done={set.done} />
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-3 flex gap-2">
+              <button
+                onClick={() => addSet(originalIndex)}
+                className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-600"
+              >
+                ＋セット
+              </button>
+              <button
+                onClick={() => removeLastSet(originalIndex)}
+                className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-600"
+              >
+                −セット
+              </button>
+            </div>
+          </section>
+
+          <section className={`${card} mt-3 p-4`}>
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-semibold">フォーム参考動画</h2>
+              <button
+                onClick={() => setDetailEditMode((prev) => !prev)}
+                className="rounded-xl px-3 py-2 text-xs font-semibold text-sky-600 hover:bg-sky-50"
+              >
+                {detailEditMode ? "編集を閉じる" : "編集"}
+              </button>
+            </div>
+
+            <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200">
+              {exercise.formVideos.length === 0 ? (
+                <div className="px-4 py-4 text-xs text-slate-400">
+                  参考動画はまだ登録されていません。
+                </div>
+              ) : (
+                exercise.formVideos.map((video, index) => (
+                  <button
+                    key={video.id}
+                    onClick={() => openFormVideo(video)}
+                    className={`flex w-full items-center gap-3 px-3 py-3 text-left active:bg-sky-50 ${
+                      index > 0 ? "border-t border-slate-100" : ""
+                    }`}
+                  >
+                    <span className="flex h-10 w-14 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-sky-500">
+                      ▶
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold">
+                        {video.title || `参考動画 ${index + 1}`}
+                      </span>
+                      <span className="mt-0.5 block text-[11px] text-slate-400">
+                        {formatStartTime(video.startSeconds)}
+                      </span>
+                    </span>
+                    <span className="text-slate-300">›</span>
+                  </button>
+                ))
+              )}
+            </div>
+
+            {detailEditMode && (
+              <div className="mt-4 space-y-3 rounded-2xl bg-slate-50 p-3">
+                {exercise.formVideos.map((video, videoIndex) => (
+                  <div
+                    key={`edit-${video.id}`}
+                    className="rounded-2xl border border-slate-200 bg-white p-3"
+                  >
+                    <div className="flex gap-2">
+                      <input
+                        value={video.title}
+                        onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                          updateFormVideo(originalIndex, video.id, {
+                            title: event.target.value,
+                          })
+                        }
+                        placeholder="動画名"
+                        className="min-w-0 flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-400"
+                      />
+                      <button
+                        onClick={() =>
+                          moveFormVideo(originalIndex, video.id, -1)
+                        }
+                        disabled={videoIndex === 0}
+                        className="rounded-lg bg-slate-100 px-2 disabled:opacity-30"
+                      >
+                        ↑
+                      </button>
+                      <button
+                        onClick={() =>
+                          moveFormVideo(originalIndex, video.id, 1)
+                        }
+                        disabled={
+                          videoIndex === exercise.formVideos.length - 1
+                        }
+                        className="rounded-lg bg-slate-100 px-2 disabled:opacity-30"
+                      >
+                        ↓
+                      </button>
+                    </div>
+                    <input
+                      value={video.url}
+                      onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                        updateFormVideo(originalIndex, video.id, {
+                          url: event.target.value,
+                        })
+                      }
+                      placeholder="YouTube URL"
+                      className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-400"
+                    />
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className="text-xs text-slate-400">開始</span>
+                      <input
+                        type="number"
+                        min="0"
+                        value={Math.floor(video.startSeconds / 60)}
+                        onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                          updateVideoTimePart(
+                            originalIndex,
+                            video,
+                            "minutes",
+                            Number(event.target.value || 0)
+                          )
+                        }
+                        className="w-16 rounded-xl border border-slate-200 px-2 py-2 text-center text-sm"
+                      />
+                      <span className="text-xs text-slate-400">分</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max="59"
+                        value={video.startSeconds % 60}
+                        onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                          updateVideoTimePart(
+                            originalIndex,
+                            video,
+                            "seconds",
+                            Number(event.target.value || 0)
+                          )
+                        }
+                        className="w-16 rounded-xl border border-slate-200 px-2 py-2 text-center text-sm"
+                      />
+                      <span className="text-xs text-slate-400">秒</span>
+                    </div>
+                    <div className="mt-2 flex justify-end">
+                      <button
+                        onClick={() =>
+                          removeFormVideo(originalIndex, video.id)
+                        }
+                        className="rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold text-red-600"
+                      >
+                        削除
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                <button
+                  onClick={() => addFormVideo(originalIndex)}
+                  className="rounded-xl bg-[#1f2d43] px-3 py-2 text-xs font-semibold text-white"
+                >
+                  ＋参考動画を追加
+                </button>
+
+                {!exercise.isBase && (
+                  <div className="flex items-center gap-2 border-t border-slate-200 pt-3">
+                    <select
+                      value={exercise.pattern}
+                      onChange={(event: ChangeEvent<HTMLSelectElement>) =>
+                        updateExercisePattern(
+                          originalIndex,
+                          event.target.value as WorkoutPattern
+                        )
+                      }
+                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                    >
+                      <option value="A">Aメニュー</option>
+                      <option value="B">Bメニュー</option>
+                    </select>
+                    <button
+                      onClick={() => deleteExercise(exercise.key)}
+                      className="rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold text-red-600"
+                    >
+                      種目を削除
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+
+          <section className={`${card} mt-3 p-4`}>
+            <div className="text-sm font-semibold">前回メモ</div>
+            <div className="mt-2 rounded-xl bg-slate-50 px-3 py-3 text-sm leading-6 text-slate-600">
+              {exercise.lastFormMemo || "まだメモはありません"}
+            </div>
+            <textarea
+              value={exercise.formMemoDraft}
+              onChange={(event: ChangeEvent<HTMLTextAreaElement>) =>
+                updateFormMemoDraft(originalIndex, event.target.value)
+              }
+              placeholder="今日気づいたフォームのポイント"
+              rows={2}
+              className="mt-3 w-full resize-none rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-400"
+            />
+          </section>
+        </main>
+
+        <BottomXPBar />
+      </div>
+    );
+  } else {
+    screen = (
+      <div className={`${appShell} flex items-center justify-center p-6`}>
+        <button
+          onClick={() => setViewMode("training")}
+          className="rounded-2xl bg-slate-900 px-5 py-3 text-white"
+        >
+          トレーニング画面へ戻る
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div translate="no" className="notranslate">
+      {screen}
 
       {celebration && (
         <div
-          className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/35 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/35 p-4 backdrop-blur-sm"
           onClick={() => setCelebration(null)}
         >
           <div
             className="w-full max-w-sm rounded-[28px] bg-white p-6 text-center shadow-2xl"
-            onClick={(event) => event.stopPropagation()}
+            onClick={(event: MouseEvent<HTMLDivElement>) => event.stopPropagation()}
           >
             <div className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-500">
               Session Complete
@@ -2005,9 +2220,11 @@ export default function App() {
               </div>
             ) : (
               <div className="mt-3 text-sm text-slate-500">
-                {MOTIVATION_PHRASES[
-                  (notes.length + 1) % MOTIVATION_PHRASES.length
-                ]}
+                {
+                  MOTIVATION_PHRASES[
+                    (notes.length + 1) % MOTIVATION_PHRASES.length
+                  ]
+                }
               </div>
             )}
             <button

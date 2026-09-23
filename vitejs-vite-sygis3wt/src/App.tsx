@@ -496,6 +496,198 @@ function buildVideoUrl(video: FormVideo) {
   }
 }
 
+
+const MOTIVATION_PHRASES = [
+  "積み上げが、明日の強さになる。",
+  "昨日の自分を、静かに超える。",
+  "1セットずつ、理想に近づく。",
+  "継続は、いちばん強い才能。",
+  "今日の1回が、未来の輪郭をつくる。",
+  "焦らず、止まらず、積み上げる。",
+  "強さは、記録の先にある。",
+  "小さな更新を、確かな成長へ。",
+  "丁寧な1レップが、身体を変える。",
+  "積み重ねた分だけ、自分は強くなる。",
+];
+
+function ForgeLogo({ compact = false }: { compact?: boolean }) {
+  return (
+    <div className="flex items-center gap-3">
+      <svg
+        viewBox="0 0 56 56"
+        className={compact ? "h-9 w-9" : "h-11 w-11"}
+        aria-hidden="true"
+      >
+        <path d="M10 9h34l-7 10H15L10 9Z" fill="currentColor" opacity="0.95" />
+        <path d="M10 24h27L24 34H10V24Z" fill="currentColor" opacity="0.82" />
+        <path d="M10 39h18L10 52V39Z" fill="currentColor" />
+      </svg>
+      <div className="leading-none">
+        <div className="text-[18px] md:text-[21px] font-semibold tracking-[0.22em] text-slate-900">
+          FORGE
+        </div>
+        <div className="mt-1 text-[9px] md:text-[10px] uppercase tracking-[0.28em] text-slate-400">
+          Training Log
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type MuscleArea =
+  | "chest"
+  | "shoulders"
+  | "triceps"
+  | "biceps"
+  | "abs"
+  | "lats"
+  | "midback"
+  | "legs"
+  | "generic";
+
+function getMuscleArea(exercise: ExerciseTemplate): MuscleArea {
+  const key = exercise.key.toLowerCase();
+  const name = exercise.name;
+
+  if (key === "chest" || key === "fly" || name.includes("チェスト") || name.includes("ペック")) {
+    return "chest";
+  }
+  if (key === "side_raise" || name.includes("サイドレイズ") || name.includes("ラテラル")) {
+    return "shoulders";
+  }
+  if (key === "triceps" || name.includes("トライセップ")) return "triceps";
+  if (key === "curl" || name.includes("カール")) return "biceps";
+  if (key === "crunch" || name.includes("クランチ") || name.includes("腹")) return "abs";
+  if (key === "lat" || name.includes("ラット")) return "lats";
+  if (key === "row" || name.includes("ロー")) return "midback";
+  if (key === "legpress" || name.includes("レッグ")) return "legs";
+  return "generic";
+}
+
+function MuscleMap({
+  exercise,
+  size = "sm",
+}: {
+  exercise: ExerciseTemplate;
+  size?: "sm" | "lg";
+}) {
+  const area = getMuscleArea(exercise);
+  const isBack = area === "lats" || area === "midback";
+  const wrap = size === "lg" ? "h-36 w-28" : "h-20 w-16";
+
+  const active = "fill-sky-500";
+  const muted = "fill-slate-200";
+  const line = "stroke-slate-300";
+
+  return (
+    <svg
+      viewBox="0 0 100 150"
+      className={`${wrap} shrink-0`}
+      role="img"
+      aria-label={`${exercise.name}で主に鍛える部位`}
+    >
+      <circle cx="50" cy="14" r="10" className={muted} />
+      <path
+        d="M36 27C30 33 26 45 27 61l4 34 8 38h22l8-38 4-34c1-16-3-28-9-34-8-6-20-6-28 0Z"
+        className={muted}
+      />
+      <path d="M34 32 19 45 14 78l9 2 11-29" className={`${line} fill-none`} strokeWidth="8" strokeLinecap="round" />
+      <path d="m66 32 15 13 5 33-9 2-11-29" className={`${line} fill-none`} strokeWidth="8" strokeLinecap="round" />
+      <path d="M42 129 36 147M58 129l6 18" className={`${line} fill-none`} strokeWidth="9" strokeLinecap="round" />
+
+      {!isBack && area === "chest" && (
+        <>
+          <path d="M33 40c6-7 13-7 17 0v20c-8 2-14-2-17-8Z" className={active} />
+          <path d="M67 40c-6-7-13-7-17 0v20c8 2 14-2 17-8Z" className={active} />
+        </>
+      )}
+      {!isBack && area === "shoulders" && (
+        <>
+          <ellipse cx="29" cy="38" rx="10" ry="12" className={active} />
+          <ellipse cx="71" cy="38" rx="10" ry="12" className={active} />
+        </>
+      )}
+      {!isBack && area === "triceps" && (
+        <>
+          <path d="M20 48c5 0 8 5 7 13l-4 18-8-2 2-20Z" className={active} />
+          <path d="M80 48c-5 0-8 5-7 13l4 18 8-2-2-20Z" className={active} />
+        </>
+      )}
+      {!isBack && area === "biceps" && (
+        <>
+          <ellipse cx="22" cy="57" rx="7" ry="12" className={active} />
+          <ellipse cx="78" cy="57" rx="7" ry="12" className={active} />
+        </>
+      )}
+      {!isBack && area === "abs" && (
+        <>
+          <rect x="42" y="62" width="7" height="14" rx="3" className={active} />
+          <rect x="51" y="62" width="7" height="14" rx="3" className={active} />
+          <rect x="42" y="78" width="7" height="14" rx="3" className={active} />
+          <rect x="51" y="78" width="7" height="14" rx="3" className={active} />
+          <rect x="42" y="94" width="7" height="14" rx="3" className={active} />
+          <rect x="51" y="94" width="7" height="14" rx="3" className={active} />
+        </>
+      )}
+      {area === "legs" && (
+        <>
+          <path d="M38 104h12l-4 34-10 5-4-13Z" className={active} />
+          <path d="M62 104H50l4 34 10 5 4-13Z" className={active} />
+        </>
+      )}
+      {isBack && (
+        <>
+          <path d="M34 36c8-5 24-5 32 0l-4 20-12 9-12-9Z" className={area === "midback" ? active : muted} />
+          <path d="M34 48 27 72l14 24 9-15V62Z" className={area === "lats" ? active : muted} />
+          <path d="m66 48 7 24-14 24-9-15V62Z" className={area === "lats" ? active : muted} />
+        </>
+      )}
+      {area === "generic" && (
+        <path d="M31 46h38M26 54h48" className="stroke-sky-500" strokeWidth="6" strokeLinecap="round" />
+      )}
+    </svg>
+  );
+}
+
+function SetStatusIcon({ done }: { done: boolean }) {
+  return done ? (
+    <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500 text-sm font-bold text-white">
+      ✓
+    </span>
+  ) : (
+    <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border-2 border-slate-300 bg-white" />
+  );
+}
+
+
+function calculateSessionXP(
+  exercises: ExerciseTemplate[],
+  pattern: WorkoutPattern,
+  runMeters: number
+) {
+  const currentExercises = exercises.filter(
+    (exercise) => exercise.pattern === pattern
+  );
+
+  const strengthXP = currentExercises.reduce(
+    (sum, exercise) =>
+      sum +
+      exercise.sets
+        .filter((set) => set.done)
+        .reduce((sub, set) => sub + set.weight * set.reps, 0),
+    0
+  );
+
+  const performedCount = currentExercises.filter((exercise) =>
+    exercise.sets.some((set) => set.done)
+  ).length;
+
+  const runXP = Math.max(0, runMeters);
+  const finalXP = strengthXP + runXP;
+
+  return { strengthXP, runXP, finalXP, performedCount };
+}
+
 /** ========= App ========= */
 export default function App() {
   const initialExercisesRef = useRef<ExerciseTemplate[]>(createInitialExercises());
@@ -512,6 +704,7 @@ export default function App() {
   const [openVideoManagers, setOpenVideoManagers] = useState<
     Record<string, boolean>
   >({});
+  const [openExerciseKey, setOpenExerciseKey] = useState<string | null>("chest");
   const [celebration, setCelebration] = useState<{
     xp: number;
     oldLevel: number;
@@ -643,34 +836,10 @@ export default function App() {
 
   // XPは現在選択中のA/Bメニューだけを対象にする。
   // フォーム倍率は廃止。ランXPは単純加算。
-  const calc = useMemo(() => {
-    const currentExercises = exercises.filter(
-      (exercise) => exercise.pattern === currentPattern
-    );
-
-    const strengthXP = currentExercises.reduce(
-      (sum, exercise) =>
-        sum +
-        exercise.sets
-          .filter((set) => set.done)
-          .reduce((sub, set) => sub + set.weight * set.reps, 0),
-      0
-    );
-
-    const performedCount = currentExercises.filter((exercise) =>
-      exercise.sets.some((set) => set.done)
-    ).length;
-
-    const runXP = runMeters;
-    const finalXP = strengthXP + runXP;
-
-    return {
-      strengthXP,
-      runXP,
-      finalXP,
-      performedCount,
-    };
-  }, [exercises, currentPattern, runMeters]);
+  const calc = useMemo(
+    () => calculateSessionXP(exercises, currentPattern, runMeters),
+    [exercises, currentPattern, runMeters]
+  );
 
   const lv = computeLevel(totalXP);
   const title = TITLES[Math.min(lv.level - 1, TITLES.length - 1)];
@@ -701,6 +870,10 @@ export default function App() {
 
   const selectPattern = (pattern: WorkoutPattern) => {
     setCurrentPattern(pattern);
+    const firstExercise = latestStateRef.current.exercises.find(
+      (exercise) => exercise.pattern === pattern
+    );
+    setOpenExerciseKey(firstExercise?.key ?? null);
     persistNow({ currentPattern: pattern });
   };
 
@@ -1000,15 +1173,21 @@ export default function App() {
   };
 
   const commitToday = () => {
-    if (calc.finalXP <= 0) {
+    const snapshot = latestStateRef.current;
+    const committedPattern = snapshot.currentPattern;
+    const snapshotCalc = calculateSessionXP(
+      snapshot.exercises,
+      committedPattern,
+      snapshot.runMeters
+    );
+
+    if (snapshotCalc.finalXP <= 0) {
       alert("完了したセット、またはラン距離を入力してください");
       return;
     }
 
-    const snapshot = latestStateRef.current;
-    const committedPattern = snapshot.currentPattern;
     const oldLevel = computeLevel(snapshot.totalXP).level;
-    const nextTotalXP = snapshot.totalXP + calc.finalXP;
+    const nextTotalXP = snapshot.totalXP + snapshotCalc.finalXP;
     const newLevel = computeLevel(nextTotalXP).level;
     const today = getTodayJST();
 
@@ -1032,8 +1211,8 @@ export default function App() {
     const nextNotes: Note[] = [
       {
         date: snapshot.todayDate || today,
-        xp: calc.finalXP,
-        memo: `筋トレ${pretty(calc.strengthXP)}XP / ラン${pretty(calc.runXP)}XP`,
+        xp: snapshotCalc.finalXP,
+        memo: `筋トレ${pretty(snapshotCalc.strengthXP)}XP / ラン${pretty(snapshotCalc.runXP)}XP`,
         pattern: committedPattern,
       },
       ...snapshot.notes,
@@ -1062,9 +1241,14 @@ export default function App() {
     setRunMeters(nextState.runMeters);
     setCurrentPattern(nextState.currentPattern);
     setLastPattern(nextState.lastPattern);
+    setOpenExerciseKey(
+      nextState.exercises.find(
+        (exercise) => exercise.pattern === nextState.currentPattern
+      )?.key ?? null
+    );
 
     setCelebration({
-      xp: calc.finalXP,
+      xp: snapshotCalc.finalXP,
       oldLevel,
       newLevel,
     });
@@ -1137,172 +1321,242 @@ export default function App() {
 
   if (!loaded) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center text-gray-600">
-        読み込み中...
+      <div className="min-h-screen bg-slate-100 flex items-center justify-center text-slate-500">
+        <div className="flex flex-col items-center gap-4">
+          <div className="text-slate-800">
+            <ForgeLogo />
+          </div>
+          <div className="text-sm">読み込み中...</div>
+        </div>
       </div>
     );
   }
 
+  const motivationPhrase =
+    MOTIVATION_PHRASES[notes.length % MOTIVATION_PHRASES.length];
+
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900 p-4 md:p-8">
-      <div className="max-w-6xl mx-auto space-y-6 pb-28 md:pb-8">
-        {/* Header */}
-        <div className="rounded-2xl bg-white shadow p-5">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold">筋トレXPトラッカー</h1>
-              <div className="mt-2 text-sm">
-                総経験値：<span className="font-semibold">{pretty(totalXP)}</span> XP
-              </div>
-              <div className="mt-1 text-sm">
-                レベル：<span className="font-semibold">Lv {lv.level}</span>「{title}」
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2 text-sm">
-                <span className="rounded-full bg-gray-100 px-3 py-1.5">
-                  前回：{lastPattern ? `${lastPattern}メニュー` : "記録なし"}
-                </span>
-                <span className="rounded-full bg-blue-50 text-blue-700 px-3 py-1.5 font-semibold">
-                  推奨：{recommendedPattern}メニュー
-                </span>
-              </div>
-            </div>
-
-            <div className="w-full md:w-1/2">
-              <div className="text-sm mb-1">
-                次のレベルまで：{pretty(Math.max(0, lv.toNext - lv.into))} XP
-              </div>
-              <div className="h-3 bg-gray-200 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-blue-600"
-                  style={{ width: `${levelProgress}%` }}
-                />
-              </div>
-            </div>
+    <div className="min-h-screen bg-[#eef1f4] text-slate-900">
+      <div className="mx-auto max-w-3xl px-3 pb-28 pt-3 sm:px-5 sm:pt-5">
+        {/* Brand header */}
+        <header className="mb-3 flex items-center justify-between rounded-[24px] border border-white/70 bg-white/90 px-4 py-3 shadow-[0_10px_35px_rgba(15,23,42,0.06)] backdrop-blur">
+          <div className="text-slate-800">
+            <ForgeLogo />
           </div>
-
-          <div className="mt-4 flex flex-wrap gap-3">
-            <button
-              onClick={commitToday}
-              className="px-4 py-2 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700"
-            >
-              XPを加算して保存
-            </button>
-            <button
-              onClick={resetToday}
-              className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200"
-            >
-              今日の入力をリセット
-            </button>
+          <div className="flex items-center gap-2">
             <button
               onClick={exportJSON}
-              className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200"
+              className="hidden rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-500 hover:bg-slate-50 sm:block"
             >
-              バックアップ
+              Backup
             </button>
-            <button
-              onClick={importJSON}
-              className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200"
-            >
-              復元
-            </button>
-            <button
-              onClick={hardReset}
-              className="px-4 py-2 rounded-xl bg-red-100 text-red-700 hover:bg-red-200"
-            >
-              全データをリセット
-            </button>
+            <details className="relative">
+              <summary className="flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50">
+                ⋯
+              </summary>
+              <div className="absolute right-0 z-40 mt-2 w-52 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
+                <button
+                  onClick={exportJSON}
+                  className="w-full rounded-xl px-3 py-2 text-left text-sm hover:bg-slate-50 sm:hidden"
+                >
+                  バックアップ
+                </button>
+                <button
+                  onClick={importJSON}
+                  className="w-full rounded-xl px-3 py-2 text-left text-sm hover:bg-slate-50"
+                >
+                  復元
+                </button>
+                <button
+                  onClick={resetToday}
+                  className="w-full rounded-xl px-3 py-2 text-left text-sm hover:bg-slate-50"
+                >
+                  今日の入力をリセット
+                </button>
+                <button
+                  onClick={hardReset}
+                  className="w-full rounded-xl px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
+                >
+                  全データをリセット
+                </button>
+              </div>
+            </details>
           </div>
-        </div>
+        </header>
 
-        {/* Pattern selector and progress */}
-        <div className="rounded-2xl bg-white shadow p-5 space-y-4">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+        {/* XP / Level */}
+        <section className="rounded-[24px] border border-white/70 bg-white p-5 shadow-[0_10px_35px_rgba(15,23,42,0.06)]">
+          <div className="flex items-start justify-between gap-4">
             <div>
-              <h2 className="text-xl font-semibold">本日のメニュー</h2>
-              <div className="text-sm text-gray-500 mt-1">
-                前回が{lastPattern ?? "未記録"}のため、今日は{recommendedPattern}がおすすめです
+              <div className="text-xs font-semibold tracking-[0.08em] text-slate-400">
+                TOTAL EXPERIENCE
+              </div>
+              <div className="mt-1 flex items-end gap-2">
+                <div className="text-4xl font-semibold tracking-tight text-slate-950">
+                  {pretty(totalXP)}
+                </div>
+                <div className="pb-1 text-lg font-semibold text-slate-500">XP</div>
               </div>
             </div>
-            <input
-              type="date"
-              value={todayDate}
-              onChange={(event) => handleDateChange(event.target.value)}
-              className="border rounded-lg px-3 py-2 h-11 text-base bg-white text-black"
-            />
+            <div className="text-right">
+              <div className="text-xs font-semibold text-slate-400">LEVEL</div>
+              <div className="text-3xl font-semibold text-slate-900">Lv {lv.level}</div>
+              <div className="mt-1 max-w-[150px] truncate text-xs text-slate-500">
+                {title}
+              </div>
+            </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            {(["A", "B"] as WorkoutPattern[]).map((pattern) => (
-              <button
-                key={pattern}
-                onClick={() => selectPattern(pattern)}
-                className={`rounded-2xl border px-4 py-4 text-left transition ${
-                  currentPattern === pattern
-                    ? pattern === "A"
-                      ? "border-red-500 bg-red-50 ring-2 ring-red-100"
-                      : "border-blue-500 bg-blue-50 ring-2 ring-blue-100"
-                    : "bg-white hover:bg-gray-50"
-                }`}
-              >
-                <div className="text-xl font-bold">{pattern}メニュー</div>
-                <div className="text-sm text-gray-600 mt-1">
-                  {pattern === "A" ? "胸・肩・三頭筋" : "脚・背中・二頭筋・腹筋"}
-                </div>
-              </button>
-            ))}
+          <div className="mt-4">
+            <div className="mb-2 flex items-center justify-between text-xs text-slate-500">
+              <span>次のレベルまで {pretty(Math.max(0, lv.toNext - lv.into))} XP</span>
+              <span>Lv {Math.min(lv.level + 1, LEVEL_NEEDS.length + 1)}</span>
+            </div>
+            <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-sky-500 to-blue-600 transition-all"
+                style={{ width: `${levelProgress}%` }}
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* Previous / recommendation */}
+        <section className="mt-3 grid grid-cols-2 gap-3">
+          <button
+            onClick={() => lastPattern && selectPattern(lastPattern)}
+            className="rounded-[22px] border border-white/70 bg-white p-4 text-left shadow-[0_8px_28px_rgba(15,23,42,0.05)] transition active:scale-[0.99]"
+          >
+            <div className="text-[11px] font-semibold text-slate-400">前回のトレーニング</div>
+            <div className="mt-1 text-base font-semibold text-slate-900">
+              {lastPattern ? `${lastPattern}メニュー` : "記録なし"}
+            </div>
+          </button>
+          <button
+            onClick={() => selectPattern(recommendedPattern)}
+            className="rounded-[22px] border border-sky-100 bg-gradient-to-br from-white to-sky-50 p-4 text-left shadow-[0_8px_28px_rgba(15,23,42,0.05)] transition active:scale-[0.99]"
+          >
+            <div className="text-[11px] font-semibold text-sky-500">あなたへのおすすめ</div>
+            <div className="mt-1 text-base font-semibold text-slate-900">
+              {recommendedPattern}メニュー
+            </div>
+          </button>
+        </section>
+
+        {/* Menu selector */}
+        <section className="mt-3 rounded-[24px] border border-white/70 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.06)]">
+          <div className="mb-3 flex items-end justify-between gap-3">
+            <div>
+              <div className="text-lg font-semibold">本日のメニュー</div>
+              <input
+                type="date"
+                value={todayDate}
+                onChange={(event) => handleDateChange(event.target.value)}
+                className="mt-1 border-0 bg-transparent p-0 text-xs text-slate-400 outline-none"
+              />
+            </div>
+            <div className="max-w-[52%] text-right text-xs leading-5 text-slate-500">
+              {motivationPhrase}
+            </div>
           </div>
 
-          <div>
-            <div className="flex items-center justify-between text-sm mb-2">
-              <span className="font-semibold">今日の進捗</span>
-              <span>
-                {completedBaseExercises}/{currentBaseExercises.length}種目・{workoutProgress}%
+          <div className="grid grid-cols-2 gap-2">
+            {(["A", "B"] as WorkoutPattern[]).map((pattern) => {
+              const selected = currentPattern === pattern;
+              return (
+                <button
+                  key={pattern}
+                  onClick={() => selectPattern(pattern)}
+                  className={`rounded-2xl border px-4 py-3 text-left transition ${
+                    selected
+                      ? "border-slate-800 bg-slate-800 text-white shadow-lg shadow-slate-300/40"
+                      : "border-slate-200 bg-slate-50 text-slate-700"
+                  }`}
+                >
+                  <div className="text-base font-semibold">{pattern}メニュー</div>
+                  <div className={`mt-1 text-[11px] ${selected ? "text-slate-300" : "text-slate-400"}`}>
+                    {pattern === "A" ? "胸・肩・腕" : "背中・腕・体幹・脚"}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="mt-4">
+            <div className="mb-2 flex items-center justify-between text-sm">
+              <span className="font-semibold text-slate-700">今日の進捗</span>
+              <span className="font-semibold text-slate-600">
+                {completedBaseExercises}/{currentBaseExercises.length}種目 ・ {workoutProgress}%
               </span>
             </div>
-            <div className="h-3 bg-gray-200 rounded-full overflow-hidden">
+            <div className="h-2 overflow-hidden rounded-full bg-slate-100">
               <div
-                className={`h-full ${currentPattern === "A" ? "bg-red-500" : "bg-blue-600"}`}
+                className="h-full rounded-full bg-sky-500 transition-all"
                 style={{ width: `${workoutProgress}%` }}
               />
             </div>
           </div>
-
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <div className="font-bold">フォーム確認は動画から</div>
-            <div className="text-sm mt-1 text-gray-600">
-              各種目の参考動画をワンタップで開けます。動画を開く直前にも入力内容を保存します。
-            </div>
-          </div>
-        </div>
+        </section>
 
         {/* Exercises */}
-        <div className="rounded-2xl bg-white shadow p-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold">{currentPattern}メニューの種目</h2>
-            <span className="text-sm text-gray-500">{visibleExercises.length}種目</span>
-          </div>
-
-          {visibleExercises.map(({ exercise, originalIndex }) => {
-            const videoManagerOpen = Boolean(openVideoManagers[exercise.key]);
+        <section className="mt-3 space-y-3">
+          {visibleExercises.map(({ exercise, originalIndex }, visualIndex) => {
+            const isOpen = openExerciseKey === exercise.key;
+            const doneSets = exercise.sets.filter((set) => set.done).length;
+            const firstSet = exercise.sets[0];
 
             return (
-              <div
+              <article
                 key={exercise.key}
-                className="rounded-2xl border bg-white p-4 space-y-4"
+                className="overflow-hidden rounded-[24px] border border-white/70 bg-white shadow-[0_10px_35px_rgba(15,23,42,0.055)]"
               >
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                  <div className="flex-1">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setOpenExerciseKey((prev) =>
+                      prev === exercise.key ? null : exercise.key
+                    )
+                  }
+                  className="flex w-full items-center gap-3 p-4 text-left"
+                >
+                  <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${
+                    doneSets > 0 ? "bg-sky-500 text-white" : "bg-slate-100 text-slate-500"
+                  }`}>
+                    {exercise.isBase ? visualIndex + 1 : "+"}
+                  </div>
+
+                  <MuscleMap exercise={exercise} />
+
+                  <div className="min-w-0 flex-1">
                     {exercise.isBase ? (
-                      <div className="font-semibold text-lg">{exercise.name}</div>
+                      <div className="truncate text-base font-semibold text-slate-900">
+                        {exercise.name}
+                      </div>
                     ) : (
-                      <div className="flex flex-col sm:flex-row gap-2">
-                        <input
-                          value={exercise.name}
-                          onChange={(event) =>
-                            updateExerciseName(originalIndex, event.target.value)
-                          }
-                          className="border rounded-lg px-3 py-2 h-11 text-base bg-white text-black w-full sm:w-72"
-                        />
+                      <input
+                        value={exercise.name}
+                        onClick={(event) => event.stopPropagation()}
+                        onChange={(event) =>
+                          updateExerciseName(originalIndex, event.target.value)
+                        }
+                        className="w-full rounded-lg border border-slate-200 px-2 py-1 text-base font-semibold outline-none focus:border-sky-400"
+                      />
+                    )}
+                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-400">
+                      <span>
+                        目安 {firstSet ? `${firstSet.weight}kg × ${firstSet.reps}` : "—"}
+                      </span>
+                      <span>{doneSets}/{exercise.sets.length}セット完了</span>
+                    </div>
+                  </div>
+
+                  <div className={`text-xl text-slate-300 transition ${isOpen ? "rotate-180" : ""}`}>⌄</div>
+                </button>
+
+                {isOpen && (
+                  <div className="border-t border-slate-100 px-4 pb-4 pt-3">
+                    {!exercise.isBase && (
+                      <div className="mb-3 flex flex-wrap items-center gap-2">
                         <select
                           value={exercise.pattern}
                           onChange={(event) =>
@@ -1311,446 +1565,366 @@ export default function App() {
                               event.target.value as WorkoutPattern
                             )
                           }
-                          className="border rounded-lg px-3 py-2 h-11 bg-white text-black"
+                          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
                         >
                           <option value="A">Aメニュー</option>
                           <option value="B">Bメニュー</option>
                         </select>
-                      </div>
-                    )}
-
-                    {exercise.lastFormMemo && (
-                      <div className="mt-2 rounded-lg bg-indigo-50 px-3 py-2 text-sm text-indigo-900">
-                        <span className="font-semibold">前回のフォームメモ：</span>
-                        {exercise.lastFormMemo}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex flex-wrap gap-2 shrink-0">
-                    <button
-                      onClick={() => addSet(originalIndex)}
-                      className="px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-sm"
-                    >
-                      ＋セット
-                    </button>
-                    <button
-                      onClick={() => removeLastSet(originalIndex)}
-                      className="px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-sm"
-                    >
-                      −セット
-                    </button>
-                    {!exercise.isBase && (
-                      <button
-                        onClick={() => deleteExercise(exercise.key)}
-                        className="px-3 py-2 rounded-lg bg-red-100 text-red-700 hover:bg-red-200 text-sm font-semibold"
-                      >
-                        種目を削除
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                <div className="hidden md:grid grid-cols-12 gap-2 text-sm font-medium text-gray-500">
-                  <div className="col-span-2">セット</div>
-                  <div className="col-span-3 text-right">重量(kg)</div>
-                  <div className="col-span-3 text-right">回数</div>
-                  <div className="col-span-2 text-right">XP</div>
-                  <div className="col-span-2 text-center">状態</div>
-                </div>
-
-                {exercise.sets.map((set, setIdx) => (
-                  <div
-                    key={`${exercise.key}-${setIdx}`}
-                    className="grid grid-cols-12 gap-2 items-center rounded-xl p-3 bg-gray-50"
-                  >
-                    <div className="col-span-12 md:col-span-2 font-medium">
-                      Set {setIdx + 1}
-                    </div>
-
-                    <input
-                      type="number"
-                      min={0}
-                      value={set.weight}
-                      onChange={(event) =>
-                        updateSetField(
-                          originalIndex,
-                          setIdx,
-                          "weight",
-                          Number(event.target.value || 0)
-                        )
-                      }
-                      className="col-span-6 md:col-span-3 border rounded-lg px-3 py-2 h-11 text-base text-right bg-white text-black"
-                    />
-
-                    <input
-                      type="number"
-                      min={0}
-                      value={set.reps}
-                      onChange={(event) =>
-                        updateSetField(
-                          originalIndex,
-                          setIdx,
-                          "reps",
-                          Number(event.target.value || 0)
-                        )
-                      }
-                      className="col-span-6 md:col-span-3 border rounded-lg px-3 py-2 h-11 text-base text-right bg-white text-black"
-                    />
-
-                    <div className="col-span-6 md:col-span-2 text-sm md:text-right">
-                      {pretty(set.weight * set.reps)} XP
-                    </div>
-
-                    <div className="col-span-6 md:col-span-2 flex justify-end md:justify-center">
-                      <button
-                        onClick={() => toggleSetDone(originalIndex, setIdx)}
-                        className={`px-3 py-2 rounded-lg text-sm font-semibold ${
-                          set.done
-                            ? "bg-green-600 text-white"
-                            : "bg-gray-200 text-gray-800"
-                        }`}
-                      >
-                        {set.done ? "完了済み" : "セット完了"}
-                      </button>
-                    </div>
-                  </div>
-                ))}
-
-                {/* Quick form videos */}
-                <div className="rounded-xl border bg-gray-50 p-4 space-y-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                    <div>
-                      <div className="font-semibold">フォーム参考動画</div>
-                      <div className="text-xs text-gray-500 mt-0.5">
-                        登録数：{exercise.formVideos.length}件
-                      </div>
-                    </div>
-                    <button
-                      onClick={() =>
-                        setOpenVideoManagers((prev) => ({
-                          ...prev,
-                          [exercise.key]: !prev[exercise.key],
-                        }))
-                      }
-                      className="px-3 py-2 rounded-lg bg-white border hover:bg-gray-100 text-sm"
-                    >
-                      {videoManagerOpen ? "動画・メモ編集を閉じる" : "動画・メモを編集"}
-                    </button>
-                  </div>
-
-                  {exercise.formVideos.length === 0 ? (
-                    <div className="text-sm text-gray-500">
-                      参考動画はまだ未登録です。「動画・メモを編集」から追加できます。
-                    </div>
-                  ) : (
-                    <div className="flex flex-wrap gap-2">
-                      {exercise.formVideos.map((video) => (
                         <button
-                          key={video.id}
-                          onClick={() => openFormVideo(video)}
-                          className="rounded-xl bg-red-50 border border-red-100 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 text-left"
+                          onClick={() => deleteExercise(exercise.key)}
+                          className="rounded-xl bg-red-50 px-3 py-2 text-sm font-semibold text-red-600"
                         >
-                          ▶ {video.title}
-                          {video.startSeconds > 0 && (
-                            <span className="ml-2 text-xs font-normal text-red-600">
-                              {formatStartTime(video.startSeconds)}〜
-                            </span>
-                          )}
+                          種目を削除
                         </button>
-                      ))}
-                    </div>
-                  )}
+                      </div>
+                    )}
 
-                  {videoManagerOpen && (
-                    <div className="border-t pt-4 space-y-4">
-                      {exercise.formVideos.map((video, videoIndex) => (
+                    <div className="space-y-2">
+                      {exercise.sets.map((set, setIndex) => (
                         <div
-                          key={video.id}
-                          className="rounded-xl border bg-white p-3 space-y-3"
+                          key={`${exercise.key}-${setIndex}`}
+                          className="grid grid-cols-[52px_1fr_1fr_auto] items-center gap-2 rounded-2xl bg-slate-50 p-2.5"
                         >
-                          <div className="grid md:grid-cols-2 gap-3">
-                            <div>
-                              <label className="block text-xs font-semibold text-gray-600 mb-1">
-                                動画名
-                              </label>
-                              <input
-                                value={video.title}
-                                onChange={(event) =>
-                                  updateFormVideo(originalIndex, video.id, {
-                                    title: event.target.value,
-                                  })
-                                }
-                                className="w-full border rounded-lg px-3 py-2 bg-white text-black"
-                              />
-                            </div>
-
-                            <div>
-                              <label className="block text-xs font-semibold text-gray-600 mb-1">
-                                YouTube URL
-                              </label>
-                              <input
-                                value={video.url}
-                                onChange={(event) =>
-                                  updateFormVideo(originalIndex, video.id, {
-                                    url: event.target.value,
-                                  })
-                                }
-                                placeholder="https://youtube.com/..."
-                                className="w-full border rounded-lg px-3 py-2 bg-white text-black"
-                              />
-                            </div>
+                          <div className="text-xs font-semibold text-slate-500">
+                            Set {setIndex + 1}
                           </div>
-
-                          <div className="flex flex-wrap items-end gap-2">
-                            <div>
-                              <label className="block text-xs font-semibold text-gray-600 mb-1">
-                                開始位置・分
-                              </label>
-                              <input
-                                type="number"
-                                min={0}
-                                value={Math.floor(video.startSeconds / 60)}
-                                onChange={(event) =>
-                                  updateVideoTimePart(
-                                    originalIndex,
-                                    video,
-                                    "minutes",
-                                    Number(event.target.value || 0)
-                                  )
-                                }
-                                className="w-24 border rounded-lg px-3 py-2 bg-white text-black text-right"
-                              />
-                            </div>
-
-                            <div>
-                              <label className="block text-xs font-semibold text-gray-600 mb-1">
-                                秒
-                              </label>
-                              <input
-                                type="number"
-                                min={0}
-                                max={59}
-                                value={video.startSeconds % 60}
-                                onChange={(event) =>
-                                  updateVideoTimePart(
-                                    originalIndex,
-                                    video,
-                                    "seconds",
-                                    Number(event.target.value || 0)
-                                  )
-                                }
-                                className="w-20 border rounded-lg px-3 py-2 bg-white text-black text-right"
-                              />
-                            </div>
-
-                            <button
-                              onClick={() => openFormVideo(video)}
-                              className="px-3 py-2 rounded-lg bg-red-600 text-white text-sm font-semibold hover:bg-red-700"
-                            >
-                              ▶ {formatStartTime(video.startSeconds)}から確認
-                            </button>
-
-                            <div className="flex gap-1 ml-auto">
-                              <button
-                                disabled={videoIndex === 0}
-                                onClick={() =>
-                                  moveFormVideo(originalIndex, video.id, -1)
-                                }
-                                className="px-3 py-2 rounded-lg bg-gray-100 text-sm disabled:opacity-40"
-                              >
-                                ↑
-                              </button>
-                              <button
-                                disabled={videoIndex === exercise.formVideos.length - 1}
-                                onClick={() =>
-                                  moveFormVideo(originalIndex, video.id, 1)
-                                }
-                                className="px-3 py-2 rounded-lg bg-gray-100 text-sm disabled:opacity-40"
-                              >
-                                ↓
-                              </button>
-                              <button
-                                onClick={() =>
-                                  removeFormVideo(originalIndex, video.id)
-                                }
-                                className="px-3 py-2 rounded-lg bg-red-50 text-red-700 text-sm"
-                              >
-                                削除
-                              </button>
-                            </div>
+                          <div className="relative">
+                            <input
+                              type="number"
+                              value={set.weight}
+                              onChange={(event) =>
+                                updateSetField(
+                                  originalIndex,
+                                  setIndex,
+                                  "weight",
+                                  Number(event.target.value || 0)
+                                )
+                              }
+                              className="h-10 w-full rounded-xl border border-slate-200 bg-white px-2 pr-7 text-right text-sm font-semibold outline-none focus:border-sky-400"
+                            />
+                            <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">
+                              kg
+                            </span>
                           </div>
+                          <div className="relative">
+                            <input
+                              type="number"
+                              value={set.reps}
+                              onChange={(event) =>
+                                updateSetField(
+                                  originalIndex,
+                                  setIndex,
+                                  "reps",
+                                  Number(event.target.value || 0)
+                                )
+                              }
+                              className="h-10 w-full rounded-xl border border-slate-200 bg-white px-2 pr-7 text-right text-sm font-semibold outline-none focus:border-sky-400"
+                            />
+                            <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">
+                              回
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => toggleSetDone(originalIndex, setIndex)}
+                            className="flex items-center gap-2 rounded-xl px-2 py-1.5"
+                          >
+                            <SetStatusIcon done={set.done} />
+                            <span className={`hidden text-xs font-semibold sm:inline ${
+                              set.done ? "text-emerald-600" : "text-slate-400"
+                            }`}>
+                              {set.done ? "完了" : "未完了"}
+                            </span>
+                          </button>
                         </div>
                       ))}
+                    </div>
 
+                    <div className="mt-3 flex gap-2">
                       <button
-                        onClick={() => addFormVideo(originalIndex)}
-                        className="px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-sm"
+                        onClick={() => addSet(originalIndex)}
+                        className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-600"
                       >
-                        ＋参考動画を追加
+                        ＋セット
+                      </button>
+                      <button
+                        onClick={() => removeLastSet(originalIndex)}
+                        className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-600"
+                      >
+                        −セット
+                      </button>
+                    </div>
+
+                    {/* Video / memo accordion */}
+                    <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
+                      <button
+                        onClick={() =>
+                          setOpenVideoManagers((prev) => ({
+                            ...prev,
+                            [exercise.key]: !prev[exercise.key],
+                          }))
+                        }
+                        className="flex w-full items-center justify-between bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700"
+                      >
+                        <span>フォーム参考動画・メモ</span>
+                        <span className="text-xs font-normal text-slate-400">
+                          動画 {exercise.formVideos.length}件
+                        </span>
                       </button>
 
-                      <div>
-                        <label className="block text-sm font-semibold mb-1">
-                          今日のフォームメモ
-                        </label>
-                        <textarea
-                          value={exercise.formMemoDraft}
-                          onChange={(event) =>
-                            updateFormMemoDraft(originalIndex, event.target.value)
-                          }
-                          placeholder="例：肩をすくめない。次回は肘の軌道を動画と比較する"
-                          rows={2}
-                          className="w-full border rounded-lg px-3 py-2 bg-white text-black"
-                        />
-                        <div className="text-xs text-gray-500 mt-1">
-                          この種目を実施してXP保存した時、入力内容を「前回のフォームメモ」として残します。
+                      {openVideoManagers[exercise.key] && (
+                        <div className="space-y-4 border-t border-slate-200 p-4">
+                          {exercise.formVideos.length === 0 ? (
+                            <div className="rounded-xl bg-slate-50 p-3 text-xs text-slate-400">
+                              参考動画はまだ登録されていません。
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              {exercise.formVideos.map((video, videoIndex) => (
+                                <div
+                                  key={video.id}
+                                  className="rounded-2xl border border-slate-200 p-3"
+                                >
+                                  <div className="flex items-start gap-2">
+                                    <input
+                                      value={video.title}
+                                      onChange={(event) =>
+                                        updateFormVideo(originalIndex, video.id, {
+                                          title: event.target.value,
+                                        })
+                                      }
+                                      placeholder="動画名"
+                                      className="min-w-0 flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                                    />
+                                    <button
+                                      onClick={() => moveFormVideo(originalIndex, video.id, -1)}
+                                      disabled={videoIndex === 0}
+                                      className="rounded-lg bg-slate-100 px-2 py-2 text-xs disabled:opacity-30"
+                                    >
+                                      ↑
+                                    </button>
+                                    <button
+                                      onClick={() => moveFormVideo(originalIndex, video.id, 1)}
+                                      disabled={videoIndex === exercise.formVideos.length - 1}
+                                      className="rounded-lg bg-slate-100 px-2 py-2 text-xs disabled:opacity-30"
+                                    >
+                                      ↓
+                                    </button>
+                                  </div>
+                                  <input
+                                    value={video.url}
+                                    onChange={(event) =>
+                                      updateFormVideo(originalIndex, video.id, {
+                                        url: event.target.value,
+                                      })
+                                    }
+                                    placeholder="YouTube URL"
+                                    className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                                  />
+                                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                                    <span className="text-xs text-slate-400">開始</span>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      value={Math.floor(video.startSeconds / 60)}
+                                      onChange={(event) =>
+                                        updateVideoTimePart(
+                                          originalIndex,
+                                          video,
+                                          "minutes",
+                                          Number(event.target.value || 0)
+                                        )
+                                      }
+                                      className="w-16 rounded-xl border border-slate-200 px-2 py-2 text-center text-sm"
+                                    />
+                                    <span className="text-xs text-slate-400">分</span>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      max="59"
+                                      value={video.startSeconds % 60}
+                                      onChange={(event) =>
+                                        updateVideoTimePart(
+                                          originalIndex,
+                                          video,
+                                          "seconds",
+                                          Number(event.target.value || 0)
+                                        )
+                                      }
+                                      className="w-16 rounded-xl border border-slate-200 px-2 py-2 text-center text-sm"
+                                    />
+                                    <span className="text-xs text-slate-400">秒</span>
+                                  </div>
+                                  <div className="mt-3 flex items-center justify-between gap-2">
+                                    <button
+                                      onClick={() => openFormVideo(video)}
+                                      className="rounded-xl bg-sky-500 px-3 py-2 text-xs font-semibold text-white"
+                                    >
+                                      ▶ {formatStartTime(video.startSeconds)}から見る
+                                    </button>
+                                    <button
+                                      onClick={() => removeFormVideo(originalIndex, video.id)}
+                                      className="rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold text-red-600"
+                                    >
+                                      削除
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          <button
+                            onClick={() => addFormVideo(originalIndex)}
+                            className="rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white"
+                          >
+                            ＋参考動画を追加
+                          </button>
+
+                          <div>
+                            <div className="mb-2 text-xs font-semibold text-slate-500">
+                              前回メモ
+                            </div>
+                            {exercise.lastFormMemo ? (
+                              <div className="mb-2 rounded-xl bg-slate-50 p-3 text-sm text-slate-600">
+                                {exercise.lastFormMemo}
+                              </div>
+                            ) : (
+                              <div className="mb-2 text-xs text-slate-400">
+                                まだメモはありません
+                              </div>
+                            )}
+                            <textarea
+                              value={exercise.formMemoDraft}
+                              onChange={(event) =>
+                                updateFormMemoDraft(originalIndex, event.target.value)
+                              }
+                              placeholder="今日気づいたフォームのポイント"
+                              rows={2}
+                              className="w-full resize-none rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-400"
+                            />
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              </div>
+                  </div>
+                )}
+              </article>
             );
           })}
+        </section>
 
-          <div className="pt-2">
-            <button
-              onClick={addExtraExercise}
-              className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200"
-            >
-              ＋{currentPattern}メニューに自由種目を追加
-            </button>
-          </div>
-        </div>
+        <button
+          onClick={addExtraExercise}
+          className="mt-3 w-full rounded-[20px] border border-dashed border-slate-300 bg-white/60 px-4 py-3 text-sm font-semibold text-slate-500"
+        >
+          ＋{currentPattern}メニューに自由種目を追加
+        </button>
 
-        {/* Run + XP summary */}
-        <div className="rounded-2xl bg-white shadow p-5 space-y-4">
-          <div className="space-y-2">
-            <div className="font-semibold">ラントレ距離（m）＝XP</div>
-            <input
-              type="number"
-              min={0}
-              value={runMeters}
-              onChange={(event) =>
-                updateRunMeters(Number(event.target.value || 0))
-              }
-              placeholder="例：2000"
-              className="border rounded-lg px-3 py-2 h-11 text-base w-40 bg-white text-black"
-            />
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-3">
-            <div className="rounded-xl bg-blue-50 p-4">
-              <div className="font-semibold">本日のXP内訳</div>
-              <div className="mt-2 space-y-1 text-sm">
-                <div className="flex justify-between gap-4">
-                  <span>{currentPattern}メニュー筋トレXP</span>
-                  <span>{pretty(calc.strengthXP)} XP</span>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <span>ランXP</span>
-                  <span>{pretty(calc.runXP)} XP</span>
-                </div>
-              </div>
-              <div className="border-t border-blue-200 mt-3 pt-3 text-xl font-bold flex justify-between gap-4">
-                <span>最終XP</span>
-                <span>{pretty(calc.finalXP)} XP</span>
-              </div>
+        {/* Run */}
+        <section className="mt-3 rounded-[24px] border border-white/70 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <div className="text-sm font-semibold text-slate-800">ラントレ距離</div>
+              <div className="mt-1 text-xs text-slate-400">1m = 1XP</div>
             </div>
-
-            <div className="hidden md:flex items-end gap-2">
-              <button
-                onClick={commitToday}
-                className="px-4 py-3 rounded-2xl bg-blue-600 text-white font-bold w-full hover:bg-blue-700"
-              >
-                XPを加算して保存
-              </button>
-              <button
-                onClick={resetToday}
-                className="px-4 py-3 rounded-2xl bg-gray-100 w-full hover:bg-gray-200"
-              >
-                今日の入力をリセット
-              </button>
+            <div className="relative w-36">
+              <input
+                type="number"
+                value={runMeters}
+                onChange={(event) =>
+                  updateRunMeters(Number(event.target.value || 0))
+                }
+                className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 pr-8 text-right font-semibold outline-none focus:border-sky-400"
+              />
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">
+                m
+              </span>
             </div>
           </div>
-        </div>
+        </section>
 
-        {/* Logs */}
-        <div className="rounded-2xl bg-white shadow p-5">
-          <h2 className="text-xl font-semibold mb-2">最近のセッション</h2>
-          {notes.length === 0 ? (
-            <div className="text-sm opacity-70">まだ記録がありません</div>
-          ) : (
-            <div className="space-y-2">
-              {notes.map((note, index) => (
+        {/* Recent sessions */}
+        <details className="mt-3 rounded-[24px] border border-white/70 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)]">
+          <summary className="cursor-pointer list-none text-sm font-semibold text-slate-800">
+            最近のセッション
+          </summary>
+          <div className="mt-3 space-y-2">
+            {notes.length === 0 ? (
+              <div className="text-xs text-slate-400">まだ記録がありません</div>
+            ) : (
+              notes.slice(0, 8).map((note, index) => (
                 <div
                   key={`${note.date}-${index}`}
-                  className="border rounded-xl p-3 bg-gray-50"
+                  className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2"
                 >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="text-sm opacity-70">{note.date}</div>
-                    {note.pattern && (
-                      <span className="rounded-full bg-white border px-2.5 py-1 text-xs font-semibold">
-                        {note.pattern}メニュー
-                      </span>
-                    )}
+                  <div>
+                    <div className="text-xs text-slate-400">
+                      {note.date} {note.pattern ? `・${note.pattern}メニュー` : ""}
+                    </div>
+                    <div className="text-xs text-slate-500">{note.memo}</div>
                   </div>
-                  <div className="font-semibold">+{pretty(note.xp)} XP</div>
-                  <div className="text-xs opacity-60">{note.memo}</div>
+                  <div className="font-semibold text-slate-800">
+                    +{pretty(note.xp)} XP
+                  </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
+              ))
+            )}
+          </div>
+        </details>
       </div>
 
-      {/* Mobile fixed bar */}
-      <div className="md:hidden fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur border-t p-3 z-40">
-        <div className="max-w-6xl mx-auto flex items-center gap-3">
-          <div className="flex-1">
-            <div className="text-xs text-gray-500">{currentPattern}メニュー</div>
-            <div className="text-lg font-bold">{pretty(calc.finalXP)} XP</div>
+      {/* Fixed bottom summary */}
+      <div className="fixed inset-x-0 bottom-0 z-50 border-t border-slate-700/30 bg-slate-900/95 px-3 py-3 text-white shadow-[0_-10px_30px_rgba(15,23,42,0.2)] backdrop-blur">
+        <div className="mx-auto flex max-w-3xl items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="text-[10px] uppercase tracking-[0.14em] text-slate-400">
+              Today's XP
+            </div>
+            <div className="mt-0.5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+              <span className="text-xl font-semibold">{pretty(calc.finalXP)} XP</span>
+              <span className="text-[11px] text-slate-400">
+                筋トレ {pretty(calc.strengthXP)} / ラン {pretty(calc.runXP)}
+              </span>
+            </div>
           </div>
           <button
             onClick={commitToday}
-            className="px-4 py-3 rounded-xl bg-blue-600 text-white font-bold"
+            className="rounded-2xl bg-gradient-to-r from-sky-500 to-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-sky-900/20 active:scale-[0.98]"
           >
-            保存
-          </button>
-          <button
-            onClick={resetToday}
-            className="px-4 py-3 rounded-xl bg-gray-100"
-          >
-            リセット
+            保存 →
           </button>
         </div>
       </div>
 
-      {/* Celebration */}
       {celebration && (
         <div
-          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/35 p-4 backdrop-blur-sm"
           onClick={() => setCelebration(null)}
         >
           <div
-            className="w-full max-w-sm rounded-3xl bg-white p-7 text-center shadow-2xl"
+            className="w-full max-w-sm rounded-[28px] bg-white p-6 text-center shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="text-sm font-semibold tracking-widest text-blue-600">
-              WORKOUT COMPLETE
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-500">
+              Session Complete
             </div>
-            <div className="mt-4 text-4xl font-black">
+            <div className="mt-3 text-4xl font-semibold text-slate-950">
               +{pretty(celebration.xp)} XP
             </div>
-            {celebration.newLevel > celebration.oldLevel && (
-              <div className="mt-3 text-lg font-bold">
-                Lv {celebration.oldLevel} → Lv {celebration.newLevel}
+            {celebration.newLevel > celebration.oldLevel ? (
+              <div className="mt-3 rounded-2xl bg-amber-50 px-4 py-3 font-semibold text-amber-700">
+                LEVEL UP! Lv {celebration.newLevel}
+              </div>
+            ) : (
+              <div className="mt-3 text-sm text-slate-500">
+                {MOTIVATION_PHRASES[
+                  (notes.length + 1) % MOTIVATION_PHRASES.length
+                ]}
               </div>
             )}
             <button
               onClick={() => setCelebration(null)}
-              className="mt-6 w-full rounded-xl bg-blue-600 px-4 py-3 font-bold text-white"
+              className="mt-5 w-full rounded-2xl bg-slate-900 px-4 py-3 font-semibold text-white"
             >
               閉じる
             </button>

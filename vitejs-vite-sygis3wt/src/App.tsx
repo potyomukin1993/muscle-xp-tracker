@@ -573,7 +573,7 @@ function MuscleMap({
 }) {
   const area = getMuscleArea(exercise);
   const isBack = area === "lats" || area === "midback";
-  const wrap = size === "lg" ? "h-36 w-28" : "h-20 w-16";
+  const wrap = size === "lg" ? "h-36 w-28" : "h-16 w-12";
 
   const active = "fill-sky-500";
   const muted = "fill-slate-200";
@@ -704,7 +704,10 @@ export default function App() {
   const [openVideoManagers, setOpenVideoManagers] = useState<
     Record<string, boolean>
   >({});
-  const [openExerciseKey, setOpenExerciseKey] = useState<string | null>("chest");
+  const [editVideoManagers, setEditVideoManagers] = useState<
+    Record<string, boolean>
+  >({});
+  const [openExerciseKey, setOpenExerciseKey] = useState<string | null>(null);
   const [celebration, setCelebration] = useState<{
     xp: number;
     oldLevel: number;
@@ -1544,7 +1547,10 @@ export default function App() {
                     )}
                     <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-400">
                       <span>
-                        目安 {firstSet ? `${firstSet.weight}kg × ${firstSet.reps}` : "—"}
+                        前回{" "}
+                        {firstSet
+                          ? `${firstSet.weight}kg × ${firstSet.reps} × ${exercise.sets.length}`
+                          : "—"}
                       </span>
                       <span>{doneSets}/{exercise.sets.length}セット完了</span>
                     </div>
@@ -1654,8 +1660,8 @@ export default function App() {
                       </button>
                     </div>
 
-                    {/* Video / memo accordion */}
-                    <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
+                    {/* Video / memo: view first, edit only when requested */}
+                    <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white">
                       <button
                         onClick={() =>
                           setOpenVideoManagers((prev) => ({
@@ -1663,26 +1669,98 @@ export default function App() {
                             [exercise.key]: !prev[exercise.key],
                           }))
                         }
-                        className="flex w-full items-center justify-between bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700"
+                        className="flex w-full items-center justify-between bg-slate-50 px-4 py-3 text-left text-sm font-semibold text-slate-700 focus:outline-none"
                       >
                         <span>フォーム参考動画・メモ</span>
-                        <span className="text-xs font-normal text-slate-400">
+                        <span className="flex items-center gap-2 text-xs font-normal text-slate-400">
                           動画 {exercise.formVideos.length}件
+                          <span
+                            className={`transition-transform ${
+                              openVideoManagers[exercise.key] ? "rotate-180" : ""
+                            }`}
+                          >
+                            ⌄
+                          </span>
                         </span>
                       </button>
 
                       {openVideoManagers[exercise.key] && (
-                        <div className="space-y-4 border-t border-slate-200 p-4">
-                          {exercise.formVideos.length === 0 ? (
-                            <div className="rounded-xl bg-slate-50 p-3 text-xs text-slate-400">
-                              参考動画はまだ登録されていません。
+                        <div className="space-y-4 border-t border-slate-200 p-3 sm:p-4">
+                          {/* Normal workout view: one tap to play */}
+                          <div>
+                            <div className="mb-2 flex items-center justify-between">
+                              <div className="text-xs font-semibold text-slate-500">
+                                フォーム参考動画
+                              </div>
+                              <button
+                                onClick={() =>
+                                  setEditVideoManagers((prev) => ({
+                                    ...prev,
+                                    [exercise.key]: !prev[exercise.key],
+                                  }))
+                                }
+                                className="rounded-lg px-2 py-1 text-xs font-semibold text-sky-600 hover:bg-sky-50"
+                              >
+                                {editVideoManagers[exercise.key] ? "編集を閉じる" : "編集"}
+                              </button>
                             </div>
-                          ) : (
-                            <div className="space-y-3">
+
+                            {exercise.formVideos.length === 0 ? (
+                              <div className="rounded-xl bg-slate-50 px-3 py-3 text-xs text-slate-400">
+                                参考動画はまだ登録されていません。
+                              </div>
+                            ) : (
+                              <div className="overflow-hidden rounded-xl border border-slate-200">
+                                {exercise.formVideos.map((video, videoIndex) => (
+                                  <button
+                                    key={video.id}
+                                    type="button"
+                                    onClick={() => openFormVideo(video)}
+                                    className={`flex w-full items-center gap-3 px-3 py-3 text-left transition hover:bg-sky-50 active:bg-sky-100 ${
+                                      videoIndex > 0 ? "border-t border-slate-100" : ""
+                                    }`}
+                                  >
+                                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sky-500 text-sm text-white">
+                                      ▶
+                                    </span>
+                                    <span className="min-w-0 flex-1">
+                                      <span className="block truncate text-sm font-semibold text-slate-800">
+                                        {video.title || `参考動画 ${videoIndex + 1}`}
+                                      </span>
+                                      <span className="mt-0.5 block text-[11px] text-slate-400">
+                                        {formatStartTime(video.startSeconds)}から再生
+                                      </span>
+                                    </span>
+                                    <span className="text-slate-300">›</span>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Memo is primarily for quick reference during training */}
+                          <div>
+                            <div className="mb-2 text-xs font-semibold text-slate-500">
+                              メモ
+                            </div>
+                            <div className="rounded-xl bg-slate-50 px-3 py-3 text-sm leading-6 text-slate-600">
+                              {exercise.formMemoDraft ||
+                                exercise.lastFormMemo ||
+                                "まだメモはありません"}
+                            </div>
+                          </div>
+
+                          {/* Editing controls are hidden during normal workout use */}
+                          {editVideoManagers[exercise.key] && (
+                            <div className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50/60 p-3">
+                              <div className="text-xs font-semibold tracking-wide text-slate-500">
+                                動画・メモを編集
+                              </div>
+
                               {exercise.formVideos.map((video, videoIndex) => (
                                 <div
-                                  key={video.id}
-                                  className="rounded-2xl border border-slate-200 p-3"
+                                  key={`edit-${video.id}`}
+                                  className="rounded-2xl border border-slate-200 bg-white p-3"
                                 >
                                   <div className="flex items-start gap-2">
                                     <input
@@ -1693,23 +1771,30 @@ export default function App() {
                                         })
                                       }
                                       placeholder="動画名"
-                                      className="min-w-0 flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                                      className="min-w-0 flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-400"
                                     />
                                     <button
-                                      onClick={() => moveFormVideo(originalIndex, video.id, -1)}
+                                      onClick={() =>
+                                        moveFormVideo(originalIndex, video.id, -1)
+                                      }
                                       disabled={videoIndex === 0}
                                       className="rounded-lg bg-slate-100 px-2 py-2 text-xs disabled:opacity-30"
                                     >
                                       ↑
                                     </button>
                                     <button
-                                      onClick={() => moveFormVideo(originalIndex, video.id, 1)}
-                                      disabled={videoIndex === exercise.formVideos.length - 1}
+                                      onClick={() =>
+                                        moveFormVideo(originalIndex, video.id, 1)
+                                      }
+                                      disabled={
+                                        videoIndex === exercise.formVideos.length - 1
+                                      }
                                       className="rounded-lg bg-slate-100 px-2 py-2 text-xs disabled:opacity-30"
                                     >
                                       ↓
                                     </button>
                                   </div>
+
                                   <input
                                     value={video.url}
                                     onChange={(event) =>
@@ -1718,8 +1803,9 @@ export default function App() {
                                       })
                                     }
                                     placeholder="YouTube URL"
-                                    className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                                    className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-400"
                                   />
+
                                   <div className="mt-2 flex flex-wrap items-center gap-2">
                                     <span className="text-xs text-slate-400">開始</span>
                                     <input
@@ -1734,7 +1820,7 @@ export default function App() {
                                           Number(event.target.value || 0)
                                         )
                                       }
-                                      className="w-16 rounded-xl border border-slate-200 px-2 py-2 text-center text-sm"
+                                      className="w-16 rounded-xl border border-slate-200 bg-white px-2 py-2 text-center text-sm"
                                     />
                                     <span className="text-xs text-slate-400">分</span>
                                     <input
@@ -1750,19 +1836,22 @@ export default function App() {
                                           Number(event.target.value || 0)
                                         )
                                       }
-                                      className="w-16 rounded-xl border border-slate-200 px-2 py-2 text-center text-sm"
+                                      className="w-16 rounded-xl border border-slate-200 bg-white px-2 py-2 text-center text-sm"
                                     />
                                     <span className="text-xs text-slate-400">秒</span>
                                   </div>
+
                                   <div className="mt-3 flex items-center justify-between gap-2">
                                     <button
                                       onClick={() => openFormVideo(video)}
                                       className="rounded-xl bg-sky-500 px-3 py-2 text-xs font-semibold text-white"
                                     >
-                                      ▶ {formatStartTime(video.startSeconds)}から見る
+                                      ▶ {formatStartTime(video.startSeconds)}から確認
                                     </button>
                                     <button
-                                      onClick={() => removeFormVideo(originalIndex, video.id)}
+                                      onClick={() =>
+                                        removeFormVideo(originalIndex, video.id)
+                                      }
                                       className="rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold text-red-600"
                                     >
                                       削除
@@ -1770,39 +1859,38 @@ export default function App() {
                                   </div>
                                 </div>
                               ))}
+
+                              <button
+                                onClick={() => addFormVideo(originalIndex)}
+                                className="rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white"
+                              >
+                                ＋参考動画を追加
+                              </button>
+
+                              <div>
+                                <div className="mb-2 text-xs font-semibold text-slate-500">
+                                  今日のメモ
+                                </div>
+                                {exercise.lastFormMemo && (
+                                  <div className="mb-2 rounded-xl bg-white px-3 py-2 text-xs leading-5 text-slate-500">
+                                    前回：{exercise.lastFormMemo}
+                                  </div>
+                                )}
+                                <textarea
+                                  value={exercise.formMemoDraft}
+                                  onChange={(event) =>
+                                    updateFormMemoDraft(
+                                      originalIndex,
+                                      event.target.value
+                                    )
+                                  }
+                                  placeholder="今日気づいたフォームのポイント"
+                                  rows={2}
+                                  className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-sky-400"
+                                />
+                              </div>
                             </div>
                           )}
-
-                          <button
-                            onClick={() => addFormVideo(originalIndex)}
-                            className="rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white"
-                          >
-                            ＋参考動画を追加
-                          </button>
-
-                          <div>
-                            <div className="mb-2 text-xs font-semibold text-slate-500">
-                              前回メモ
-                            </div>
-                            {exercise.lastFormMemo ? (
-                              <div className="mb-2 rounded-xl bg-slate-50 p-3 text-sm text-slate-600">
-                                {exercise.lastFormMemo}
-                              </div>
-                            ) : (
-                              <div className="mb-2 text-xs text-slate-400">
-                                まだメモはありません
-                              </div>
-                            )}
-                            <textarea
-                              value={exercise.formMemoDraft}
-                              onChange={(event) =>
-                                updateFormMemoDraft(originalIndex, event.target.value)
-                              }
-                              placeholder="今日気づいたフォームのポイント"
-                              rows={2}
-                              className="w-full resize-none rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-400"
-                            />
-                          </div>
                         </div>
                       )}
                     </div>

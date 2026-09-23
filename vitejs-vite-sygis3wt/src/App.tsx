@@ -579,16 +579,55 @@ type MuscleArea =
 
 // Wikimedia Commons / Anatomography / Gray's Anatomy の公開画像を利用。
 // 位置合わせの疑似オーバーレイは廃止し、対象筋が実際に着色された画像を種目ごとに表示する。
-const MUSCLE_VIEW: Record<MuscleArea, "front" | "back"> = {
-  chest: "front",
-  shoulders: "front",
-  triceps: "back",
-  biceps: "front",
-  abs: "front",
-  lats: "back",
-  midback: "back",
-  legs: "front",
-  generic: "front",
+const MUSCLE_IMAGE_BY_AREA: Record<
+  MuscleArea,
+  { src: string; objectPosition?: string; scale?: number }
+> = {
+  chest: {
+    src: "/chest-front.png",
+    objectPosition: "50% 50%",
+    scale: 1,
+  },
+  shoulders: {
+    src: "/shoulders-front.png",
+    objectPosition: "50% 50%",
+    scale: 1,
+  },
+  triceps: {
+    src: "/triceps-back.png",
+    objectPosition: "50% 50%",
+    scale: 1,
+  },
+  biceps: {
+    src: "/biceps-front.png",
+    objectPosition: "50% 50%",
+    scale: 1,
+  },
+  abs: {
+    src: "/abs-front.png",
+    objectPosition: "50% 50%",
+    scale: 1,
+  },
+  lats: {
+    src: "/lats-back.png",
+    objectPosition: "50% 50%",
+    scale: 1,
+  },
+  midback: {
+    src: "/midback-back.png",
+    objectPosition: "50% 50%",
+    scale: 1,
+  },
+  legs: {
+    src: "/legs-front.png",
+    objectPosition: "50% 50%",
+    scale: 1,
+  },
+  generic: {
+    src: "/chest-front.png",
+    objectPosition: "50% 50%",
+    scale: 1,
+  },
 };
 
 const EVEREST_ART_URL =
@@ -622,216 +661,31 @@ function MuscleMap({
   size?: "sm" | "lg";
 }) {
   const area = getMuscleArea(exercise);
-  const view = MUSCLE_VIEW[area];
+  const artwork = MUSCLE_IMAGE_BY_AREA[area];
   const large = size === "lg";
-
-  const blue = "#31A9EE";
-  const blueSoft = "#7CCAF4";
-  const body = "#E8EDF2";
-  const bodyDark = "#CFD8E1";
-  const stroke = "#B9C4CE";
-  const white = "#F8FAFC";
-
-  const is = (...areas: MuscleArea[]) => areas.includes(area);
 
   return (
     <figure
-      className={`relative shrink-0 overflow-hidden bg-gradient-to-b from-[#fbfdff] to-[#f5f8fb] ${
+      className={`relative shrink-0 overflow-hidden ${
         large
           ? "h-[170px] w-[132px] rounded-[24px]"
           : "h-[76px] w-[60px] rounded-[18px]"
       }`}
       aria-label={`${exercise.name}で主に鍛える部位`}
     >
-      <svg
-        viewBox="0 0 120 180"
-        className="h-full w-full"
-        role="img"
-        aria-hidden="true"
-      >
-        <defs>
-          <linearGradient id={`forge-body-${area}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#F4F7FA" />
-            <stop offset="100%" stopColor="#DCE4EA" />
-          </linearGradient>
-          <linearGradient id={`forge-muscle-${area}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#58BAF3" />
-            <stop offset="100%" stopColor="#1F97E4" />
-          </linearGradient>
-          <filter id={`forge-shadow-${area}`} x="-40%" y="-40%" width="180%" height="180%">
-            <feDropShadow dx="0" dy="2" stdDeviation="2.2" floodColor="#0F172A" floodOpacity="0.08" />
-          </filter>
-        </defs>
+      <div className="absolute inset-0 rounded-[inherit] bg-[linear-gradient(180deg,#fbfdff_0%,#f5f8fb_100%)]" />
 
-        <g
-          stroke={stroke}
-          strokeWidth="1.1"
-          strokeLinejoin="round"
-          strokeLinecap="round"
-          filter={`url(#forge-shadow-${area})`}
-        >
-          {/* head / neck */}
-          <ellipse cx="60" cy="14" rx="10.8" ry="12.2" fill={white} />
-          <path d="M53 25.5 51 34h18l-2-8.5" fill={body} />
-
-          {/* torso silhouette */}
-          <path
-            d="M40 33
-               C33 37 29 46 29 59
-               L33 109
-               C34 120 39 129 44 136
-               L76 136
-               C81 129 86 120 87 109
-               L91 59
-               C91 46 87 37 80 33
-               C69 28 51 28 40 33Z"
-            fill={`url(#forge-body-${area})`}
-          />
-
-          {/* shoulders */}
-          <ellipse
-            cx="32.8"
-            cy="43.5"
-            rx="11.8"
-            ry="9.5"
-            fill={is("shoulders") ? `url(#forge-muscle-${area})` : body}
-          />
-          <ellipse
-            cx="87.2"
-            cy="43.5"
-            rx="11.8"
-            ry="9.5"
-            fill={is("shoulders") ? `url(#forge-muscle-${area})` : body}
-          />
-
-          {/* upper arms */}
-          <path
-            d="M25 47 C19 55 17 67 18 80 L21 103 30 101 33 77 38 55Z"
-            fill={
-              (view === "front" && is("biceps")) || (view === "back" && is("triceps"))
-                ? `url(#forge-muscle-${area})`
-                : body
-            }
-          />
-          <path
-            d="M95 47 C101 55 103 67 102 80 L99 103 90 101 87 77 82 55Z"
-            fill={
-              (view === "front" && is("biceps")) || (view === "back" && is("triceps"))
-                ? `url(#forge-muscle-${area})`
-                : body
-            }
-          />
-
-          {/* forearms */}
-          <path d="M21 103 18 129 26 131 31 102Z" fill={bodyDark} />
-          <path d="m99 103 3 26-8 2-5-29Z" fill={bodyDark} />
-
-          {view === "front" ? (
-            <>
-              {/* clavicle / pecs */}
-              <path
-                d="M38 39 C44 34 53 34 59 38 L59 63
-                   C50 65 42 61 37 54Z"
-                fill={is("chest") ? `url(#forge-muscle-${area})` : body}
-              />
-              <path
-                d="M82 39 C76 34 67 34 61 38 L61 63
-                   C70 65 78 61 83 54Z"
-                fill={is("chest") ? `url(#forge-muscle-${area})` : body}
-              />
-
-              {/* sternum */}
-              <path d="M60 39v79" fill="none" stroke="#C6D0D8" strokeWidth="0.9" />
-
-              {/* abs */}
-              <g fill={is("abs") ? blue : body}>
-                <path d="M45 68h12v14H44Z" />
-                <path d="M63 68h12l1 14H63Z" />
-                <path d="M44 85h13v14H43Z" />
-                <path d="M63 85h13l1 14H63Z" />
-                <path d="M43 102h14v14H42Z" />
-                <path d="M63 102h14l1 14H63Z" />
-              </g>
-
-              {/* obliques */}
-              <path d="M36 67 43 75l-2 38-8-18Z" fill={bodyDark} />
-              <path d="m84 67-7 8 2 38 8-18Z" fill={bodyDark} />
-
-              {/* biceps definition */}
-              {is("biceps") && (
-                <>
-                  <ellipse cx="25.2" cy="63" rx="6.3" ry="11" fill={blueSoft} stroke="none" />
-                  <ellipse cx="94.8" cy="63" rx="6.3" ry="11" fill={blueSoft} stroke="none" />
-                </>
-              )}
-            </>
-          ) : (
-            <>
-              {/* trapezius / upper back */}
-              <path
-                d="M39 38 C45 33 53 31 60 31
-                   C67 31 75 33 81 38
-                   L75 62 60 72 45 62Z"
-                fill={is("midback") ? `url(#forge-muscle-${area})` : bodyDark}
-              />
-
-              {/* latissimus */}
-              <path
-                d="M39 51 31 77 39 111 58 91 58 61Z"
-                fill={is("lats") ? `url(#forge-muscle-${area})` : body}
-              />
-              <path
-                d="M81 51 89 77 81 111 62 91 62 61Z"
-                fill={is("lats") ? `url(#forge-muscle-${area})` : body}
-              />
-
-              {/* erectors / center back */}
-              <path
-                d="M51 69h18l-4 47H55Z"
-                fill={is("midback") ? blueSoft : bodyDark}
-              />
-
-              {/* triceps posterior accent */}
-              {is("triceps") && (
-                <>
-                  <path d="M20 52c7 1 10 9 10 19l-3 25-8-2 1-29Z" fill={blue} stroke="none" />
-                  <path d="M100 52c-7 1-10 9-10 19l3 25 8-2-1-29Z" fill={blue} stroke="none" />
-                </>
-              )}
-            </>
-          )}
-
-          {/* pelvis */}
-          <path d="M43 119h34l-3 20H46Z" fill={bodyDark} />
-
-          {/* thighs / legs */}
-          <path
-            d="M47 137 H59 L56 169 48 176 39 171 42 143Z"
-            fill={is("legs") ? `url(#forge-muscle-${area})` : body}
-          />
-          <path
-            d="M73 137 H61 L64 169 72 176 81 171 78 143Z"
-            fill={is("legs") ? `url(#forge-muscle-${area})` : body}
-          />
-
-          {/* knees / lower legs */}
-          <ellipse cx="48" cy="151" rx="5" ry="4.2" fill={is("legs") ? blueSoft : bodyDark} />
-          <ellipse cx="72" cy="151" rx="5" ry="4.2" fill={is("legs") ? blueSoft : bodyDark} />
-          <path d="M42 157 39 174 47 176 52 159Z" fill={is("legs") ? blueSoft : bodyDark} />
-          <path d="m78 157 3 17-8 2-5-17Z" fill={is("legs") ? blueSoft : bodyDark} />
-
-          {/* subtle anatomical guide lines */}
-          <path d="M40 34c4 7 6 13 5 20M80 34c-4 7-6 13-5 20" fill="none" stroke="#D2DAE1" />
-          <path d="M44 119c6 4 26 4 32 0" fill="none" stroke="#C7D1DA" />
-        </g>
-
-        {area === "generic" && (
-          <g opacity="0.9">
-            <circle cx="60" cy="92" r="4" fill={blue} />
-            <path d="M47 92h26" stroke={blue} strokeWidth="2" strokeLinecap="round" />
-          </g>
-        )}
-      </svg>
+      <img
+        src={artwork.src}
+        alt={`${exercise.name}で主に鍛える部位`}
+        draggable={false}
+        loading={large ? "eager" : "lazy"}
+        className="relative z-10 h-full w-full select-none object-contain"
+        style={{
+          objectPosition: artwork.objectPosition ?? "50% 50%",
+          transform: `scale(${artwork.scale ?? 1})`,
+        }}
+      />
     </figure>
   );
 }
@@ -2412,7 +2266,7 @@ export default function App() {
           <div className="mt-5 px-3 text-center text-[9px] leading-5 text-slate-400">
             FORGE Training Log
             <br />
-            Muscle artwork: built-in FORGE vector anatomy
+            Muscle artwork: FORGE custom PNG illustration set
             
           </div>
         </main>

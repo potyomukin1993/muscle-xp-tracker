@@ -43,7 +43,7 @@ type ExerciseTemplate = {
 };
 
 タイプ SavedState = {
-  バージョン: 7;
+  バージョン: 8;
   合計XP：数値;
   注記: 注記[];
   今日の日付: 文字列;
@@ -94,8 +94,8 @@ function getTodayJST() {
 }
 
 /** ========= 定数 ========= */
-const LS_KEY = "xp_tracker_full_v7";
-const LEGACY_LS_KEYS = ["xp_tracker_full_v6", "xp_tracker_full_v5", "xp_tracker_full_v4"];
+const LS_KEY = "xp_tracker_full_v8";
+const LEGACY_LS_KEYS = ["xp_tracker_full_v7", "xp_tracker_full_v6", "xp_tracker_full_v5", "xp_tracker_full_v4"];
 const INITIAL_TOTAL_XP = 902_277;
 
 // 2蟷江縺§Lv50諠述螳壹き繝ｼ繝。
@@ -138,7 +138,7 @@ const pretty = (n: number) => n.toLocaleString();
   );
 
   if (allSame) {
-    return `${first.weight}kg ÷ ${first.reps} ÷ ${sets.length}`;
+    return `${first.weight}kg の ${first.reps} を${sets.length} に返します`;
   }
 
   if (compact) {
@@ -148,13 +148,16 @@ const pretty = (n: number) => n.toLocaleString();
     }
 
     戻り値セット
-      .map((set) => `${set.weight}から${set.reps}`)
+      .map((set) => `${set.weight}kg ÷ ${set.reps}`)
       .join(" 竊� ");
   }
 
   戻り値セット
-    .map((set) => `${set.weight}kg ÷ ${set.reps}`)
-    .join(" 竊� ");
+    。地図（
+      (セット、インデックス) =>
+        `S${index + 1} ${set.weight}kg デー ${set.reps}蝗杼
+    ）
+    。参加する（" / "）;
 }
 
 function computeLevel(totalXP: number) {
@@ -398,7 +401,10 @@ const DEPRECATED_STANDARD_NAMES = new Set([
   "シャア繝ゲ繧修正繧アッケケ繝Φ繧キ繝§",
 ]);
 
-function migrateExercises(rawExercises: LegacyExercise[] | undefined): ExerciseTemplate[] {
+関数 migrateExercises(
+  rawExercises: LegacyExercise[] | undefined、
+  ソースバージョン: 番号
+): ExerciseTemplate[] {
   const defaults = createInitialExercises();
   const source = Array.isArray(rawExercises) ? rawExercises : [];
   const matchedIndexes = new Set<number>();
@@ -425,9 +431,14 @@ function migrateExercises(rawExercises: LegacyExercise[] | undefined): ExerciseT
     const old = source[sourceIndex];
 
     const normalizedSets = normalizeSets(old.sets, defaultExercise.sets);
-    const migratedPreviousSets = Array.isArray(old.lastSessionSets)
-      ? normalizePreviousSets(old.lastSessionSets)
-      : toPreviousSets(old.sets);
+    // v11縺セス縺§菫晏キュー倥せ繧キュー繝ｼ繝槭' version:7 縺®縺セス縺セス縺�縺”縺溘◆繧√€。
+    // lastSessionSets 縺後€梧眠莉墓§倥〒豁」縺励￥菫晏キュー倥＆繧後◆蛟、縲阪°蛻、螳壹〒縺阪↑縺九▲縺溘€...
+    // v8縺ｸ縺®蛻晏屓陦梧凾縲∫樟蝨®菫晏キュー倥＆繧後※縺�kは縺®蜷�㍾驥上�蝗樊焚繧を設定します。
+    // 縺昴�縺セス縺セス蜑榊屓險倬音響縺良く縺励※蜀肴規定狗っ峨☆繧九€�
+    const migratedPreviousSets =
+      sourceVersion >= 8 && Array.isArray(old.lastSessionSets)
+        ? normalizePreviousSets(old.lastSessionSets)
+        : toPreviousSets(old.sets);
 
     戻る {
       ...defaultExercise、
@@ -472,9 +483,10 @@ function migrateExercises(rawExercises: LegacyExercise[] | undefined): ExerciseT
       セット: normalizeSets(old.sets, [
         { 重量: 20、回数: 10、完了: false }、
       ]),
-      lastSessionSets: Array.isArray(old.lastSessionSets)
-        ? normalizePreviousSets(old.lastSessionSets)
-        : toPreviousSets(old.sets)、
+      lastSessionSets:
+        sourceVersion >= 8 && Array.isArray(old.lastSessionSets)
+          ? normalizePreviousSets(old.lastSessionSets)
+          : toPreviousSets(old.sets)、
       formVideos: normalizeVideos(old.formVideos, []),
       最後のフォームメモ:
         old.lastFormMemo のタイプ === "文字列" ? old.lastFormMemo : "",
@@ -504,13 +516,17 @@ function normalizeNotes(raw: unknown): Note[] {
 function buildStateFromRaw(raw: LegacySavedState | null): SavedState {
   const today = getTodayJST();
   const rawXP = typeof raw?.totalXP === "number" ? raw.totalXP : INITIAL_TOTAL_XP;
+  const sourceVersion =
+    typeof raw?.version === "number" && Number.isFinite(raw.version)
+      ? raw.version
+      : 0;
 
   戻る {
-    バージョン: 7、
+    バージョン: 8、
     totalXP: Math.max(INITIAL_TOTAL_XP, rawXP)
     注記: normalizeNotes(raw?.notes)
     今日日付: 今日、
-    練習問題: migrateExercises(raw?.exercises)
+    演習: migrateExercises(raw?.exercises, sourceVersion)
     runMeters: typeof raw?.runMeters === "number" ? raw.runMeters : 0,
     currentPattern: isPattern(raw?.currentPattern) ? raw.currentPattern : "A",
     最後のパターン:
@@ -855,7 +871,7 @@ export default function App() {
   const [loaded, setLoaded] = useState(false);
 
   const latestStateRef = useRef<SavedState>({
-    バージョン: 7、
+    バージョン: 8、
     合計XP: INITIAL_TOTAL_XP、
     注記: [],
     今日日付: getTodayJST()、
@@ -874,7 +890,7 @@ export default function App() {
     const next: SavedState = {
       ...latestStateRef.current、
       ...オーバーライド、
-      バージョン: 7、
+      バージョン: 8、
     };
     writeState(next);
     次の値を返す。
@@ -991,7 +1007,7 @@ export default function App() {
     };
   }, []);
 
-  // v7 キューセキュリティ霎ｼ縺ｿ縲Ｗ7 後↑縺代l縺ーv6/v5/v4 決定、蜍慕アザ陦後☆繧九€。
+  // v8 キューセキュリティ霎ｼ縺ｿ縲Ｗ8 後↑縺代l縺ーv7/v6/v5/v4 決定、よろしくお願いします☆後☆九ユーロ。
   useEffect(() => {
     let raw: LegacySavedState | null = null;
 
@@ -1102,7 +1118,7 @@ export default function App() {
     currentBaseExercises.length === 0
       ？ 0
       : Math.round(
-          (完了した基本運動数 / 現在の基本運動数.長さ) * 100
+          (完了した基本運動数 / 現在の基本運動数の長さ) * 100
         );
 
   const handleDateChange = (value: string) => {
@@ -1482,7 +1498,7 @@ export default function App() {
     const nextPattern = oppositePattern(committedPattern);
 
     const nextState: SavedState = {
-      バージョン: 7、
+      バージョン: 8、
       合計XP: 次の合計XP、
       注記: 次の注記、
       今日日付: 今日、
@@ -1563,7 +1579,7 @@ export default function App() {
 
   const performHardReset = () => {
     const nextState: SavedState = {
-      バージョン: 7、
+      バージョン: 8、
       合計XP: INITIAL_TOTAL_XP、
       注記: [],
       今日日付: getTodayJST()、
@@ -2569,7 +2585,7 @@ export default function App() {
                 <div className="text-[11px] font-semibold text-slate-400">
                   蜑榊屓縺リオン險倬
                 </div>
-                <div className="mt-1 max-w-[250px] text-[18px] font-semibold leading-7 tracking-[-0.02em]">
+                <div className="mt-1 max-w-[310px] text-[16px] font-semibold leading-7 tracking-[-0.02em]">
                   {formatPreviousSets(exercise.lastSessionSets)}
                 </div>
               </div>

@@ -1,103 +1,110 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, MouseEvent } from "react";
 
-/** ========= Types ========= */
+/** ========= 型 ========= */
 type WorkoutPattern = "A" | "B";
-type ViewMode = "home" | "training" | "exercise" | "history" | "stats" | "settings";
+タイプ ViewMode = "home" | "training" | "exercise" | "history" | "stats" | "settings";
 
 type SetEntry = {
-  weight: number;
-  reps: number;
-  done: boolean;
+  重量: 数値;
+  反復回数：回数
+  完了: ブール値;
+};
+
+type PreviousSetEntry = {
+  重量: 数値;
+  反復回数：回数
 };
 
 type FormVideo = {
-  id: string;
-  title: string;
-  url: string;
-  startSeconds: number;
+  id: 文字列;
+  タイトル: 文字列;
+  URL: 文字列;
+  開始秒数: 数値;
 };
 
 type ExerciseTemplate = {
-  key: string;
-  name: string;
-  isBase: boolean;
-  pattern: WorkoutPattern;
-  sets: SetEntry[];
+  キー: 文字列;
+  名前: 文字列;
+  isBase: ブール値;
+  パターン: ワークアウトパターン;
+  セット: SetEntry[];
+  lastSessionSets: PreviousSetEntry[];
   formVideos: FormVideo[];
-  lastFormMemo: string;
-  formMemoDraft: string;
+  lastFormMemo: 文字列;
+  formMemoDraft: 文字列;
 };
 
-type Note = {
-  date: string;
-  xp: number;
-  memo: string;
-  pattern?: WorkoutPattern;
+タイプノート = {
+  日付: 文字列;
+  xp: 数値;
+  メモ: 文字列;
+  パターン？：ワークアウトパターン;
 };
 
-type SavedState = {
-  version: 7;
-  totalXP: number;
-  notes: Note[];
-  todayDate: string;
-  exercises: ExerciseTemplate[];
-  runMeters: number;
-  currentPattern: WorkoutPattern;
+タイプ SavedState = {
+  バージョン: 7;
+  合計XP：数値;
+  注記: 注記[];
+  今日の日付: 文字列;
+  練習問題: ExerciseTemplate[];
+  ランメーター：数値;
+  currentPattern: ワークアウトパターン;
   lastPattern: WorkoutPattern | null;
 };
 
 type LegacyFormCheck = {
-  id?: string;
-  label?: string;
-  checked?: boolean;
+  id?: 文字列;
+  ラベル?: 文字列;
+  チェック済みか？：ブール値；
 };
 
 type LegacyExercise = {
-  key?: string;
-  name?: string;
-  isBase?: boolean;
-  pattern?: WorkoutPattern;
-  sets?: SetEntry[];
+  key?: 文字列;
+  名前?: 文字列;
+  isBase?: ブール値;
+  パターン？：ワークアウトパターン;
+  セット?: SetEntry[];
+  lastSessionSets?: PreviousSetEntry[];
   formChecks?: LegacyFormCheck[];
   formVideos?: FormVideo[];
   lastFormMemo?: string;
   formMemoDraft?: string;
 };
 
-type LegacySavedState = {
-  version?: number;
-  totalXP?: number;
-  notes?: Note[];
+タイプ LegacySavedState = {
+  バージョン？：番号
+  totalXP?: 数値;
+  注釈?: 注釈[];
   todayDate?: string;
-  exercises?: LegacyExercise[];
-  runMeters?: number;
-  currentPattern?: WorkoutPattern;
+  練習問題？：LegacyExercise[];
+  ランメーター？：数値;
+  currentPattern?: ワークアウトパターン;
   lastPattern?: WorkoutPattern | null;
 };
 
-/** ========= Date ========= */
+/** ========= 日付 ========= */
 function getTodayJST() {
   return new Intl.DateTimeFormat("sv-SE", {
-    timeZone: "Asia/Tokyo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
+    タイムゾーン: "アジア/東京"
+    年: "数値"、
+    月: "2桁"、
+    日: "2桁"、
   }).format(new Date());
 }
 
-/** ========= Constants ========= */
+/** ========= 定数 ========= */
 const LS_KEY = "xp_tracker_full_v7";
 const LEGACY_LS_KEYS = ["xp_tracker_full_v6", "xp_tracker_full_v5", "xp_tracker_full_v4"];
 const INITIAL_TOTAL_XP = 902_277;
 
-// 2年でLv50想定カーブ
+// 2蟷江縺§Lv50諠述螳壹き繝ｼ繝。
 function buildLevelNeeds(start = 1200, growth = 1.11, levels = 50) {
   const arr: number[] = [];
   let need = start;
   for (let i = 0; i < levels - 1; i++) {
     arr.push(Math.round(need));
-    need *= growth;
+    必要性 *=成長;
   }
   return arr;
 }
@@ -105,19 +112,50 @@ function buildLevelNeeds(start = 1200, growth = 1.11, levels = 50) {
 const LEVEL_NEEDS = buildLevelNeeds();
 
 const TITLES = [
-  "筋トレ見習い","初級プロテイン飲み","追い込みビギナー","セット職人","高重量の志願者",
-  "ルーティン守護者","意識高い系マッスル","ジムの住人","上腕二頭筋の語り部","筋肉痛の虜",
-  "部位分割の伝達者","追い込みの求道者","インクラインの探究者","フォーム警察","筋肥大の探求者",
-  "ストリクトの賢者","ボディメイクの革命児","減量期の鬼","管理人","増量期の化身",
-  "高タンパクの伝道師","魔術師","錬金術師","ホエイ界の審査員","筋肉の哲学者",
-  "フォーム錬成の達人","爆伸びの旅人","パンプの召喚士","ドロップセットの覇者","スーパーセットの舞姫",
-  "可動域の吟遊詩人","効かせの吟味者","セット間の賢者","筋線維の支配者","高密度ボディの錬成者",
-  "マシン支配の覇者","鍛錬の求道者","レップの魔術師","筋肉構築の建築士","重量との対話者",
-  "限界突破の戦士","鉄と汗の預言者","ウェイトの賢者","トレーニングの巨人","肉体改造の伝説",
-  "筋力の守護者","鍛錬界の革命児","成長記録の伝道師","セット回数の覇王","筋帝王"
+  "遲九ヨ繝拉攻撃狗偵＞","蛻晉エ壹�繝キュー繝う繝ぅ鬟イ縺ソ","霑ｽ縺�ｾ"、"、"、"、"、"、
+  "繝ｫ繝シ繝ぅ繝ぅ螳郁恵キ閠","確保余裕倬ｫ倥＞その繝槭ャ繧議繝ｫ","繧ｸ繝�縺®菴丈ｺｺｺ","荳願�莠碁�遲九�隱槭j驛®","遲玖i逞帙�陌�",
+  "驛良く菴榊�蜑イ縺®莨晞＃閠�","霑ｽ縺�セスシ縺ソ縺リオ豎る％閠�","繧､繝ぅ繧ッ繝ｩ"","繝か輔繝ｼ繝�隴ｦ蟇�","遲玖ぇ螟法縺リオ先に「豎り€�",
+  "繧セス繝医Μ繧アッサー医雉「閠」」、"繝懊ショ繧"繝｡繧､繧ッ縺®髱ｩ蜻蜈 �","貂幃㍼譛溘�鬯ｼ","邂｡逅�ｺｺｺ","蠅鈴㍼譛溘�蛹冶ｺｫ",
+  "鬮倥ち繝ぅ繝代け縺リオ莨晞％蟶ｫ","鬲碑｡灘crｫ","骭しゃ驥題｡灘ｸｫ","繝帙お繧､逡後�蟇ｩ譟蜩｡","遲玖i縺®蜩イ蟄ｦ閠�",
+  "繝輔か繝ｼ繝�骭シャー謌舌�驕比ｺｺｺ","辷�ｼｸ縺ｳ縺®譌�ｺｺｺ","繝代Φ繝励�蜿沙蝟壼”ｫ","そのような状況","そのような状況",
+  "蜿蜍募集中沺縺®蜷滄♀隧ｩ莠ｺ"、"蜉ケス九○縺®蜷溷袖閠"、"サザサヨ髢薙"閠�","遲狗ｷ夂ｶｳ縺®謾ｯ驟崎€�","鬮伜ｯｺｦ繝懊ｵ繧"縺®骭謌占€�",
+  "繝槭す繝ぅ謾ｯ驟阪「飛行」"、"骰幃軒縺®豎る％閠"、"繝car繝��縺®鬲碑｡灘九ｫ","遲玖i讒狗アッ峨蟒述今後牙"ｫ","驥咲㍼縺良く縺®蟇セス隧ジア閠�",
+  "髯千楓遯∫�エ縺®謌ｦ螢ｫ","驩�→豎励�鬆占€閠�","繧ｦ繧§繧､繝医� 雉「閠�","繝医Ξ繝ｼ繝九Φ繧ー縺®蟾®莠ｺ","閧我ス捺隼騾�縺®莨晁™",
+  "遲句鴨縺®螳イクイクキ閠�","骰幃軒逡後�髱ｩ蜻ｽ蜈�","謌宣聞險倬恐怖縺®莨晞％蟶ｫ"、"ソソ繝ヨ蝗樊焚縺リオ目撃"、"遲句ｸ晉視"
 ];
 
 const pretty = (n: number) => n.toLocaleString();
+
+関数 formatPreviousSets(
+  セット: PreviousSetEntry[]、
+  コンパクト = false
+) {
+  if (sets.length === 0) return "窶�";
+
+  const first = sets[0];
+  const allSame = sets.every(
+    (セット) => set.weight === first.weight && set.reps === first.reps
+  );
+
+  if (allSame) {
+    return `${first.weight}kg ÷ ${first.reps} ÷ ${sets.length}`;
+  }
+
+  if (compact) {
+    const sameReps = sets.every((set) => set.reps === first.reps);
+    if (sameReps) {
+      return `${sets.map((set) => set.weight).join("竊�")}kg 決定 ${first.reps}蝗杼;
+    }
+
+    戻り値セット
+      .map((set) => `${set.weight}から${set.reps}`)
+      .join(" 竊� ");
+  }
+
+  戻り値セット
+    .map((set) => `${set.weight}kg ÷ ${set.reps}`)
+    .join(" 竊� ");
+}
 
 function computeLevel(totalXP: number) {
   let lvl = 1;
@@ -126,9 +164,9 @@ function computeLevel(totalXP: number) {
   for (let i = 0; i < LEVEL_NEEDS.length; i++) {
     const need = LEVEL_NEEDS[i];
     if (rest >= need) {
-      rest -= need;
-      lvl++;
-    } else {
+      休息 -= 必要;
+      レベル++;
+    } それ以外 {
       return { level: lvl, into: rest, toNext: need };
     }
   }
@@ -137,142 +175,151 @@ function computeLevel(totalXP: number) {
 }
 
 function isPattern(value: unknown): value is WorkoutPattern {
-  return value === "A" || value === "B";
+  戻り値 === "A" || 値 === "B";
 }
 
 function oppositePattern(pattern: WorkoutPattern): WorkoutPattern {
-  return pattern === "A" ? "B" : "A";
+  パターン === "A" ? "B" : "A" を返す。
 }
 
 function createId(prefix: string) {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-/** ========= Initial exercises ========= */
+/** ========= 初期演習 ========= */
 function createInitialExercises(): ExerciseTemplate[] {
-  return [
+  戻る [
     {
-      key: "chest",
-      name: "チェストプレス",
-      isBase: true,
-      pattern: "A",
-      sets: [
-        { weight: 50, reps: 10, done: false },
-        { weight: 50, reps: 10, done: false },
-        { weight: 50, reps: 10, done: false },
+      キー:「胸」
+      名前: "繝√ォ繧ケット繝医",
+      isBase: true、
+      パターン: "A"、
+      セット: [
+        { 重量: 50、回数: 10、完了: false }、
+        { 重量: 50、回数: 10、完了: false }、
+        { 重量: 50、回数: 10、完了: false }、
       ],
+      lastSessionSets: [],
       formVideos: [],
       lastFormMemo: "",
       formMemoDraft: "",
     },
     {
-      key: "fly",
-      name: "ペックフライ",
-      isBase: true,
-      pattern: "A",
-      sets: [
-        { weight: 32, reps: 10, done: false },
-        { weight: 32, reps: 10, done: false },
+      キー:「飛ぶ」
+      名前: "繝壹ャ繧アッ繝輔Λ繧",
+      isBase: true、
+      パターン: "A"、
+      セット: [
+        { 重量: 32、回数: 10、完了: false }、
+        { 重量: 32、回数: 10、完了: false }、
       ],
+      lastSessionSets: [],
       formVideos: [],
       lastFormMemo: "",
       formMemoDraft: "",
     },
     {
-      key: "triceps",
-      name: "トライセップス",
-      isBase: true,
-      pattern: "A",
-      sets: [
-        { weight: 23, reps: 10, done: false },
-        { weight: 23, reps: 10, done: false },
+      キーワード:「上腕三頭筋」
+      名前: "医師Λ繧、その",
+      isBase: true、
+      パターン: "A"、
+      セット: [
+        { 重量: 23、回数: 10、完了: false }、
+        { 重量: 23、回数: 10、完了: false }、
       ],
+      lastSessionSets: [],
       formVideos: [
         {
           id: "triceps_reference_1",
-          title: "オーバーヘッドトライセップス参考",
-          url: "https://youtube.com/shorts/Auf16cO1Zg8",
-          startSeconds: 0,
+          タイトル: "繧™繝ｼ繝舌",
+          URL: "https://youtube.com/shorts/Auf16cO1Zg8",
+          開始秒数: 0、
         },
       ],
       lastFormMemo: "",
       formMemoDraft: "",
     },
     {
-      key: "side_raise",
-      name: "サイドレイズ",
-      isBase: true,
-      pattern: "A",
-      sets: [
-        { weight: 10, reps: 10, done: false },
-        { weight: 10, reps: 10, done: false },
+      キー: "side_raise",
+      名前: "繧オ繧､繝峨Ξ繧､繧ｺ",
+      isBase: true、
+      パターン: "A"、
+      セット: [
+        { 重量: 10、回数: 10、完了: false }、
+        { 重量: 10、回数: 10、完了: false }、
       ],
+      lastSessionSets: [],
       formVideos: [],
       lastFormMemo: "",
       formMemoDraft: "",
     },
     {
-      key: "lat",
-      name: "ラットプルダウン",
-      isBase: true,
-      pattern: "B",
-      sets: [
-        { weight: 59, reps: 10, done: false },
-        { weight: 59, reps: 10, done: false },
+      キー: "lat"、
+      名前: "繝ｩ繝�ヨ繝励Ν繝€繧ｦ繝ｳ",
+      isBase: true、
+      パターン: "B"、
+      セット: [
+        { 重量: 59、回数: 10、完了: false }、
+        { 重量: 59、回数: 10、完了: false }、
       ],
+      lastSessionSets: [],
       formVideos: [],
       lastFormMemo: "",
       formMemoDraft: "",
     },
     {
-      key: "row",
-      name: "シーテッドロー",
-      isBase: true,
-      pattern: "B",
-      sets: [
-        { weight: 52, reps: 10, done: false },
-        { weight: 52, reps: 10, done: false },
-        { weight: 52, reps: 10, done: false },
+      キー: "行",
+      名前: "繧キ繝ｼ繝�ya繝峨Ο繝ｼ",
+      isBase: true、
+      パターン: "B"、
+      セット: [
+        { 重量: 52、回数: 10、完了: false }、
+        { 重量: 52、回数: 10、完了: false }、
+        { 重量: 52、回数: 10、完了: false }、
       ],
+      lastSessionSets: [],
       formVideos: [],
       lastFormMemo: "",
       formMemoDraft: "",
     },
     {
-      key: "curl",
-      name: "アームカール",
-      isBase: true,
-      pattern: "B",
-      sets: [
-        { weight: 36, reps: 10, done: false },
-        { weight: 36, reps: 10, done: false },
+      キー: "curl"、
+      名前: "繝ｼ繝�繧ｫ繝ｼ繝ｫ",
+      isBase: true、
+      パターン: "B"、
+      セット: [
+        { 重量: 36、回数: 10、完了: false }、
+        { 重量: 36、回数: 10、完了: false }、
       ],
+      lastSessionSets: [],
       formVideos: [],
       lastFormMemo: "",
       formMemoDraft: "",
     },
     {
-      key: "crunch",
-      name: "アブドミナルクランチ",
-      isBase: true,
-      pattern: "B",
-      sets: [
-        { weight: 59, reps: 15, done: false },
-        { weight: 59, reps: 15, done: false },
+      キーワード:「クランチ」
+      名前: "繝悶ラ繝溘リ繝ｫ繧アッ繝ｩ繝ｳ繝"、
+      isBase: true、
+      パターン: "B"、
+      セット: [
+        { 重量: 59、回数: 15、完了: false }、
+        { 重量: 59、回数: 15、完了: false }、
       ],
+      lastSessionSets: [],
       formVideos: [],
       lastFormMemo: "",
       formMemoDraft: "",
     },
     {
-      key: "legpress",
-      name: "レッグプレス",
-      isBase: true,
-      pattern: "B",
-      sets: [
-        { weight: 93, reps: 10, done: false },
-        { weight: 93, reps: 10, done: false },
+      キーワード: 「レッグプレス」
+      名前: "繝カー繝ゲ繝励Ξ繧",
+      isBase: true、
+      パターン: "B"、
+      セット: [
+        { 重量: 93、回数: 10、完了: false }、
+        { 重量: 93、回数: 10、完了: false }、
       ],
+      lastSessionSets: [],
       formVideos: [],
       lastFormMemo: "",
       formMemoDraft: "",
@@ -280,32 +327,63 @@ function createInitialExercises(): ExerciseTemplate[] {
   ];
 }
 
-/** ========= Migration / normalization ========= */
+/** ========= 移行 / 正規化 ========= */
 function normalizeSets(raw: unknown, fallback: SetEntry[]): SetEntry[] {
   if (!Array.isArray(raw) || raw.length === 0) return fallback;
 
   return raw.map((item) => {
     const set = item as Partial<SetEntry>;
-    return {
-      weight: Number(set.weight) || 0,
-      reps: Number(set.reps) || 0,
-      done: Boolean(set.done),
+    戻る {
+      重み: 数値(set.weight) || 0,
+      繰り返し回数: Number(set.reps) || 0,
+      完了: Boolean(set.done)
     };
   });
+}
+
+function normalizePreviousSets(
+  生: 不明、
+  フォールバック: PreviousSetEntry[] = []
+): PreviousSetEntry[] {
+  if (!Array.isArray(raw)) return fallback;
+
+  生データを返す
+    .map((item) => {
+      const set = item as Partial<PreviousSetEntry>;
+      戻る {
+        重み: Math.max(0, Number(set.weight) || 0),
+        繰り返し回数: Math.max(0, Number(set.reps) || 0),
+      };
+    })
+    .filter((set) => set.weight > 0 || set.reps > 0);
+}
+
+function toPreviousSets(raw: unknown): PreviousSetEntry[] {
+  if (!Array.isArray(raw)) return [];
+
+  生データを返す
+    .map((item) => {
+      const set = item as Partial<SetEntry>;
+      戻る {
+        重み: Math.max(0, Number(set.weight) || 0),
+        繰り返し回数: Math.max(0, Number(set.reps) || 0),
+      };
+    })
+    .filter((set) => set.weight > 0 || set.reps > 0);
 }
 
 function normalizeVideos(raw: unknown, fallback: FormVideo[] = []): FormVideo[] {
   if (!Array.isArray(raw)) return fallback;
 
-  return raw
+  生データを返す
     .map((item, index) => {
       const video = item as Partial<FormVideo>;
-      return {
+      戻る {
         id: typeof video.id === "string" && video.id ? video.id : `video_${index + 1}`,
-        title:
+        タイトル：
           typeof video.title === "string" && video.title.trim()
-            ? video.title
-            : `参考動画 ${index + 1}`,
+            ?ビデオタイトル
+            : `蜿り€��虚その ${index + 1}`,
         url: typeof video.url === "string" ? video.url : "",
         startSeconds: Math.max(0, Math.floor(Number(video.startSeconds) || 0)),
       };
@@ -315,9 +393,9 @@ function normalizeVideos(raw: unknown, fallback: FormVideo[] = []): FormVideo[] 
 
 const DEPRECATED_STANDARD_KEYS = new Set(["shoulder", "hammer", "legext"]);
 const DEPRECATED_STANDARD_NAMES = new Set([
-  "ショルダープレス",
-  "ハンマーカール",
-  "レッグエクステンション",
+  "繧キ繝アァ繝ｫ繝€繝ｼ繝励Ξ繧",
+  "繝上Φ繝槭�繧ｫ繝ｼ繝ｫ",
+  "シャア繝ゲ繧修正繧アッケケ繝Φ繧キ繝§",
 ]);
 
 function migrateExercises(rawExercises: LegacyExercise[] | undefined): ExerciseTemplate[] {
@@ -326,17 +404,17 @@ function migrateExercises(rawExercises: LegacyExercise[] | undefined): ExerciseT
   const matchedIndexes = new Set<number>();
 
   const migratedDefaults = defaults.map((defaultExercise) => {
-    // まず安定したkeyで照合し、新規標準種目などkeyが一致しない場合のみ
-    // 同名の旧・自由追加種目を引き継ぐ。これによりサイドレイズを
-    // 以前「追加種目」として登録していた場合も重量・動画・メモを維持できる。
+    // 縺セス縺壼®牙®壹＠縺殘ey縺§辣§蜷医＠縲∵眠飛行乗良呎ｺ也®®逶®縺™縺ｩkey縺御ｸ€表示エ縺励↑縺��エ蜷医�縺ソ
+    // 蜷悟平面縺®譌ァ繝その瞬間™™応答霑スピード霉�遞®逶リオン繧貞淑″邯吶＄縲ゅ％繧後↓繧医j繧繧､繝峨Ξ繧､繧会話。
+    // 莉･蜑阪€ゴス蜉�遞®逶®縲阪→縺励※逋その骭イ縺励※縺�◆蝣エ蜷医ブ驥埼㍼その蜍慕判繝｡繝「繧堤ガセ謖√〒縺阪ｋ縲。」
     let sourceIndex = source.findIndex(
-      (exercise, index) =>
+      （練習問題、索引）=>
         !matchedIndexes.has(index) && exercise.key === defaultExercise.key
     );
 
     if (sourceIndex < 0) {
       sourceIndex = source.findIndex(
-        (exercise, index) =>
+        （練習問題、索引）=>
           !matchedIndexes.has(index) && exercise.name === defaultExercise.name
       );
     }
@@ -346,16 +424,24 @@ function migrateExercises(rawExercises: LegacyExercise[] | undefined): ExerciseT
     matchedIndexes.add(sourceIndex);
     const old = source[sourceIndex];
 
-    return {
-      ...defaultExercise,
-      // 標準種目はv7で定義した名称・A/B所属を優先し、
-      // 既存の重量・回数・動画・メモだけを引き継ぐ。
-      sets: normalizeSets(old.sets, defaultExercise.sets),
+    const normalizedSets = normalizeSets(old.sets, defaultExercise.sets);
+    const migratedPreviousSets = Array.isArray(old.lastSessionSets)
+      ? normalizePreviousSets(old.lastSessionSets)
+      : toPreviousSets(old.sets);
+
+    戻る {
+      ...defaultExercise、
+      // 讓呎ｺ也承認®®逶®縺appv7縺§螳夂ｾｩ縺励◆蜷咲ã ®ã ®A/B謇€螻槭r蜆™™蜈医@縲。
+      // 譌「蟄倥」驥咲㍼その蝗樊繝その蜍慕判繝サ繝。
+      セット: 正規化セット、
+      // v11莉･蜑阪�蜑榊屓繧其繝�ヨ縺®迢遶倶晏倥’縺™縺九▲縺溘◆繧√€�
+      //蛻晏屓遘其陦梧凾縺®縺斯迴承認菫晏倥＆繧後※縺�ｋ繧その繝�ヨ讒区繧貞燕蝗櫁権利倬幻縺良く縺励※見る。
+      lastSessionSets: migratedPreviousSets、
       formVideos: normalizeVideos(old.formVideos, defaultExercise.formVideos),
-      lastFormMemo:
-        typeof old.lastFormMemo === "string" ? old.lastFormMemo : "",
-      formMemoDraft:
-        typeof old.formMemoDraft === "string" ? old.formMemoDraft : "",
+      最後のフォームメモ:
+        old.lastFormMemo のタイプ === "文字列" ? old.lastFormMemo : "",
+      フォームメモ下書き:
+        old.formMemoDraft のタイプ === "文字列" ? old.formMemoDraft : "",
     };
   });
 
@@ -367,30 +453,33 @@ function migrateExercises(rawExercises: LegacyExercise[] | undefined): ExerciseT
       const key = typeof exercise.key === "string" ? exercise.key : "";
       const name = typeof exercise.name === "string" ? exercise.name : "";
 
-      // v6以前の標準メニューから外れた種目は、アップデート時に自動削除する。
-      // ユーザーが「＋追加種目」で作った自由種目はそのまま維持する。
+      // v6莉･蜑阪�讓呎ｺ悶Γ繝九Η繝ｼ縺九ｉ螟悶l縺溽®®逶®縺アッ縲√i繝��繝��繝域凾縺ｫ表示™蜍募集炎髯､縺吶ｋ縲。
+      // 繝ｦ繝ｼ繧ｶ繝ｼ縺後€鯉ｼ玖ｽ蜉�遞®逶®縲阪〒菴懊▲縺溯�逕ｱ遞®逶®縺昴�縺精縺精肯謖√☆繧九€。
       if (DEPRECATED_STANDARD_KEYS.has(key)) return false;
       if (DEPRECATED_STANDARD_NAMES.has(name) && exercise.isBase !== false) return false;
 
-      return true;
+      trueを返します。
     })
     .map(({ exercise: old, index }): ExerciseTemplate => ({
-      key:
+      鍵：
         typeof old.key === "string" && old.key
           ? old.key
-          : `extra_migrated_${index}`,
-      name:
-        typeof old.name === "string" && old.name ? old.name : "追加種目",
-      isBase: false,
-      pattern: isPattern(old.pattern) ? old.pattern : "B",
-      sets: normalizeSets(old.sets, [
-        { weight: 20, reps: 10, done: false },
+          : `extra_migrated_${index}`、
+      名前：
+        typeof old.name === "string" && old.name ? old.name : "霑ｽ蜉�遞®逶®",
+      isBase: false、
+      パターン: isPattern(old.pattern) ? old.pattern : "B",
+      セット: normalizeSets(old.sets, [
+        { 重量: 20、回数: 10、完了: false }、
       ]),
+      lastSessionSets: Array.isArray(old.lastSessionSets)
+        ? normalizePreviousSets(old.lastSessionSets)
+        : toPreviousSets(old.sets)、
       formVideos: normalizeVideos(old.formVideos, []),
-      lastFormMemo:
-        typeof old.lastFormMemo === "string" ? old.lastFormMemo : "",
-      formMemoDraft:
-        typeof old.formMemoDraft === "string" ? old.formMemoDraft : "",
+      最後のフォームメモ:
+        old.lastFormMemo のタイプ === "文字列" ? old.lastFormMemo : "",
+      フォームメモ下書き:
+        old.formMemoDraft のタイプ === "文字列" ? old.formMemoDraft : "",
     }));
 
   return [...migratedDefaults, ...extras];
@@ -399,14 +488,14 @@ function migrateExercises(rawExercises: LegacyExercise[] | undefined): ExerciseT
 function normalizeNotes(raw: unknown): Note[] {
   if (!Array.isArray(raw)) return [];
 
-  return raw
+  生データを返す
     .map((item) => {
       const note = item as Partial<Note>;
-      return {
+      戻る {
         date: typeof note.date === "string" ? note.date : getTodayJST(),
         xp: Number(note.xp) || 0,
-        memo: typeof note.memo === "string" ? note.memo : "",
-        pattern: isPattern(note.pattern) ? note.pattern : undefined,
+        メモ: typeof note.memo === "string" ? note.memo : "",
+        パターン: isPattern(note.pattern) ? note.pattern : undefined、
       };
     })
     .filter((note) => note.xp !== 0 || note.memo || note.date);
@@ -416,37 +505,37 @@ function buildStateFromRaw(raw: LegacySavedState | null): SavedState {
   const today = getTodayJST();
   const rawXP = typeof raw?.totalXP === "number" ? raw.totalXP : INITIAL_TOTAL_XP;
 
-  return {
-    version: 7,
-    totalXP: Math.max(INITIAL_TOTAL_XP, rawXP),
-    notes: normalizeNotes(raw?.notes),
-    todayDate: today,
-    exercises: migrateExercises(raw?.exercises),
+  戻る {
+    バージョン: 7、
+    totalXP: Math.max(INITIAL_TOTAL_XP, rawXP)
+    注記: normalizeNotes(raw?.notes)
+    今日日付: 今日、
+    練習問題: migrateExercises(raw?.exercises)
     runMeters: typeof raw?.runMeters === "number" ? raw.runMeters : 0,
     currentPattern: isPattern(raw?.currentPattern) ? raw.currentPattern : "A",
-    lastPattern:
+    最後のパターン:
       raw?.lastPattern === null || isPattern(raw?.lastPattern)
         ? raw.lastPattern ?? null
-        : null,
+        : null、
   };
 }
 
 function resetAllSessionFields(exercises: ExerciseTemplate[]) {
   return exercises.map((exercise) => ({
-    ...exercise,
-    sets: exercise.sets.map((set) => ({ ...set, done: false })),
+    ...エクササイズ、
+    セット: exercise.sets.map((set) => ({ ...set, done: false })),
     formMemoDraft: "",
   }));
 }
 
-/** ========= Video helpers ========= */
+/** ========= ビデオヘルパー ========= */
 function clampStartSeconds(value: number) {
   return Math.max(0, Math.floor(Number.isFinite(value) ? value : 0));
 }
 
 
 function extractYouTubeId(rawUrl: string) {
-  try {
+  試す {
     const parsed = new URL(rawUrl);
     const host = parsed.hostname.replace(/^www\./, "");
     if (host === "youtu.be") {
@@ -464,9 +553,9 @@ function extractYouTubeId(rawUrl: string) {
       }
     }
   } catch {
-    return "";
+    戻る "";
   }
-  return "";
+  戻る "";
 }
 
 function getYouTubeThumbnail(rawUrl: string) {
@@ -487,7 +576,7 @@ function buildVideoUrl(video: FormVideo) {
 
   const startSeconds = clampStartSeconds(video.startSeconds);
 
-  try {
+  試す {
     const normalizedRaw = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
     const parsed = new URL(normalizedRaw);
     const host = parsed.hostname
@@ -524,26 +613,26 @@ function buildVideoUrl(video: FormVideo) {
 
     return parsed.toString();
   } catch {
-    return raw;
+    生データを返す。
   }
 }
 
 
 const MOTIVATION_PHRASES = [
-  "積み上げが、明日の強さになる。",
-  "昨日の自分を、静かに超える。",
-  "1セットずつ、理想に近づく。",
-  "継続は、いちばん強い才能。",
-  "今日の1回が、未来の輪郭をつくる。",
-  "焦らず、止まらず、積み上げる。",
-  "強さは、記録の先にある。",
-  "小さな更新を、確かな成長へ。",
-  "丁寧な1レップが、身体を変える。",
-  "積み重ねた分だけ、自分は強くなる。",
+  "遨阪∩荳翫￡縺後€∵�譌･縺®蠑キ縺輔↓縺™繧九€�",
+  "譏良く譌･縺リオ聴覚™蛻�ｒ縲�撕縺九↓雜�∴繧九€�",
+  "1",
+  "邯咏ｶ壹�縲√>縺｡縺ー繧灘ｼｷ縺�燕閭ス縲�",
+  "莉頑律縺®1蝗槭′縲∵悴譚･縺®霈™驛キュー繧偵▽縺上ｋ縲�",
+  "辟ｦ繧峨★縲∵ユーロ「縺ｾ繧峨★縲∫ｩ阪∩荳翫￡繧九€」,
+  "蠑ｷ縺輔�縲∬莉倬音響縺®蜈医↓縺ゅｋ縲�",
+  "蟆上＆縺™譖エ譁ー繧偵€∫「ｺ縺九↑謌宣聞縺ｸ縲」、
+  "荳∝アッァ縺™1繝﹝��縺後€∬ｺｫ菴薙ｒ螟峨∴繧九€”,
+  "遨阪∩驥阪�縺溷�縺�縺代€∬�蛻��蠑キ縺上↑繧九€�",
 ];
 
 function ForgeLogo({ compact = false }: { compact?: boolean }) {
-  return (
+  戻る （
     <div className="flex items-center gap-3">
       <svg
         viewBox="0 0 56 56"
@@ -556,77 +645,77 @@ function ForgeLogo({ compact = false }: { compact?: boolean }) {
       </svg>
       <div className="leading-none">
         <div className="text-[18px] md:text-[21px] font-semibold tracking-[0.22em] text-slate-900">
-          FORGE
+          フォージ
         </div>
         <div className="mt-1 text-[9px] md:text-[10px] uppercase tracking-[0.28em] text-slate-400">
-          Training Log
+          トレーニングログ
         </div>
       </div>
     </div>
   );
 }
 
-type MuscleArea =
-  | "chest"
-  | "shoulders"
-  | "triceps"
-  | "biceps"
-  | "abs"
-  | "lats"
-  | "midback"
-  | "legs"
-  | "generic";
+タイプ 筋肉領域 =
+  | 「胸」
+  | 「肩」
+  | 「上腕三頭筋」
+  | 「上腕二頭筋」
+  | 「腹筋」
+  | 「広背筋」
+  「背中の真ん中」
+  | 「脚」
+  | 「汎用」
 
-// Wikimedia Commons / Anatomography / Gray's Anatomy の公開画像を利用。
-// 位置合わせの疑似オーバーレイは廃止し、対象筋が実際に着色された画像を種目ごとに表示する。
+// ウィキメディア コモンズ / 解剖学 / グレイの解剖学
+//菴咲スロリ蜷医o縺帙台ｼｼ繧™繝ｼ繝滑舌縺興奮€∝アッセス雎。遲九′螳滄圀縺ｫ逹€濶イ縺輔縺溽判蜒上r遞®逶®縺宜→縺ｫ陦​​権利遉ｺ縺吶ｋ縲。
 const MUSCLE_IMAGE_BY_AREA: Record<
-  MuscleArea,
+  筋肉領域、
   { src: string; objectPosition?: string; scale?: number }
 > = {
-  chest: {
+  胸： {
     src: "/chest-front.png",
     objectPosition: "50% 50%",
-    scale: 1,
+    スケール: 1、
   },
-  shoulders: {
+  肩: {
     src: "/shoulders-front.png",
     objectPosition: "50% 50%",
-    scale: 1,
+    スケール: 1、
   },
-  triceps: {
+  上腕三頭筋：{
     src: "/triceps-back.png",
     objectPosition: "50% 50%",
-    scale: 1,
+    スケール: 1、
   },
-  biceps: {
+  上腕二頭筋：{
     src: "/biceps-front.png",
     objectPosition: "50% 50%",
-    scale: 1,
+    スケール: 1、
   },
-  abs: {
+  腹筋: {
     src: "/abs-front.png",
     objectPosition: "50% 50%",
-    scale: 1,
+    スケール: 1、
   },
   lats: {
     src: "/lats-back.png",
     objectPosition: "50% 50%",
-    scale: 1,
+    スケール: 1、
   },
-  midback: {
+  背中の中央部: {
     src: "/midback-back.png",
     objectPosition: "50% 50%",
-    scale: 1,
+    スケール: 1、
   },
-  legs: {
+  脚: {
     src: "/legs-front.png",
     objectPosition: "50% 50%",
-    scale: 1,
+    スケール: 1、
   },
-  generic: {
+  ジェネリック： {
     src: "/chest-front.png",
     objectPosition: "50% 50%",
-    scale: 1,
+    スケール: 1、
   },
 };
 
@@ -638,62 +727,62 @@ function getMuscleArea(exercise: ExerciseTemplate): MuscleArea {
   const key = exercise.key.toLowerCase();
   const name = exercise.name;
 
-  if (key === "chest" || key === "fly" || name.includes("チェスト") || name.includes("ペック")) {
-    return "chest";
+  if (key === "胸" || key === "飛ぶ" || name.includes("繝√ぉ繧セス繝") || name.includes("繝壹ャ繧ッ")) {
+    「胸部」を返します。
   }
-  if (key === "side_raise" || name.includes("サイドレイズ") || name.includes("ラテラル")) {
-    return "shoulders";
+  if (key === "side_raise" || name.includes("繧オ繧､繝峨Ξ繧､繧ｺ") || name.includes("繝ｩ繝�Λ繝ｫ")) {
+    「肩」を返します。
   }
-  if (key === "triceps" || name.includes("トライセップ")) return "triceps";
-  if (key === "curl" || name.includes("カール")) return "biceps";
-  if (key === "crunch" || name.includes("クランチ") || name.includes("腹")) return "abs";
-  if (key === "lat" || name.includes("ラット")) return "lats";
-  if (key === "row" || name.includes("ロー")) return "midback";
-  if (key === "legpress" || name.includes("レッグ")) return "legs";
-  return "generic";
+  if (key === "上腕三頭筋" || name.includes("繝医Λ繧､その上腕")) "上腕三頭筋" を返します。
+  if (key === "curl" || name.includes("繧ｫ繝ｼ繝ｫ")) return "上腕二頭筋";
+  if (key === "クランチ" || name.includes("繧ッ繝ｩ繝ｳ繝") || name.includes("閻魔")) return "abs";
+  if (key === "lat" || name.includes("繝ｩ繝�ヨ")) return "lats";
+  if (key === "row" || name.includes("繝キュー繝")) return "midback";
+  if (key === "legpress" || name.includes("繝亜繝�げ")) return "脚";
+  「generic」を返します。
 }
 
 function MuscleMap({
-  exercise,
-  size = "sm",
+  エクササイズ、
+  サイズ = "sm",
 }: {
-  exercise: ExerciseTemplate;
-  size?: "sm" | "lg";
+  エクササイズ: エクササイズテンプレート;
+  サイズ？：「sm」｜「lg」
 }) {
   const area = getMuscleArea(exercise);
   const artwork = MUSCLE_IMAGE_BY_AREA[area];
   const large = size === "lg";
 
-  return (
-    <figure
+  戻る （
+    <図>
       className={`relative shrink-0 overflow-hidden ${
-        large
+        大きい
           ? "h-[170px] w-[132px] rounded-[24px]"
           : "h-[76px] w-[60px] rounded-[18px]"
       }`}
-      aria-label={`${exercise.name}で主に鍛える部位`}
+      aria-label={`${exercise.name}縺§荳その縺ｫ骰帙∴繧マスΚ菴港}
     >
       <div className="absolute inset-0 rounded-[inherit] bg-[linear-gradient(180deg,#fbfdff_0%,#f5f8fb_100%)]" />
 
       <img
         src={artwork.src}
-        alt={`${exercise.name}で主に鍛える部位`}
-        draggable={false}
+        alt={`${exercise.name} 縺荳その縺ｫ骰帙∴繧マスΚ菴港}
+        ドラッグ可能={false}
         loading={large ? "eager" : "lazy"}
         className="relative z-10 h-full w-full select-none object-contain"
         style={{
           objectPosition: artwork.objectPosition ?? "50% 50%",
           transform: `scale(${artwork.scale ?? 1})`,
         }}
-      />
+      ＞
     </figure>
   );
 }
 
 function SetStatusIcon({ done }: { done: boolean }) {
-  return done ? (
+  完了を返す？（
     <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500 text-sm font-bold text-white">
-      ✓
+      笨
     </span>
   ) : (
     <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border-2 border-slate-300 bg-white" />
@@ -702,18 +791,18 @@ function SetStatusIcon({ done }: { done: boolean }) {
 
 
 function calculateSessionXP(
-  exercises: ExerciseTemplate[],
-  pattern: WorkoutPattern,
-  runMeters: number
+  練習問題: ExerciseTemplate[]、
+  パターン: ワークアウトパターン、
+  ランメーター: 数値
 ) {
   const currentExercises = exercises.filter(
-    (exercise) => exercise.pattern === pattern
+    (エクササイズ) => エクササイズ.パターン === パターン
   );
 
   const strengthXP = currentExercises.reduce(
-    (sum, exercise) =>
-      sum +
-      exercise.sets
+    （合計、練習問題）=>
+      合計 +
+      エクササイズセット
         .filter((set) => set.done)
         .reduce((sub, set) => sub + set.weight * set.reps, 0),
     0
@@ -721,7 +810,7 @@ function calculateSessionXP(
 
   const performedCount = currentExercises.filter((exercise) =>
     exercise.sets.some((set) => set.done)
-  ).length;
+  ）。長さ;
 
   const runXP = Math.max(0, runMeters);
   const finalXP = strengthXP + runXP;
@@ -729,7 +818,7 @@ function calculateSessionXP(
   return { strengthXP, runXP, finalXP, performedCount };
 }
 
-/** ========= App ========= */
+/** ========= アプリ ========= */
 export default function App() {
   const initialExercisesRef = useRef<ExerciseTemplate[]>(createInitialExercises());
 
@@ -746,34 +835,34 @@ export default function App() {
   const [viewMode, setViewMode] = useState<ViewMode>("home");
   const [selectedExerciseKey, setSelectedExerciseKey] = useState<string | null>(null);
   const [detailEditMode, setDetailEditMode] = useState(false);
-  const [toast, setToast] = useState<{
-    message: string;
-    tone: "success" | "error" | "info";
+  const [トースト, setToast] = useState<{
+    メッセージ: 文字列;
+    トーン: "成功" | "エラー" | "情報";
   } | null>(null);
   const [confirmAction, setConfirmAction] = useState<{
-    title: string;
-    message: string;
-    confirmLabel: string;
-    tone: "danger" | "default";
+    タイトル: 文字列;
+    メッセージ: 文字列;
+    confirmLabel: 文字列;
+    トーン: "危険" | "デフォルト";
     onConfirm: () => void;
   } | null>(null);
   const historyReadyRef = useRef(false);
   const [celebration, setCelebration] = useState<{
-    xp: number;
-    oldLevel: number;
-    newLevel: number;
+    xp: 数値;
+    oldLevel: 数値;
+    新しいレベル: 数値;
   } | null>(null);
   const [loaded, setLoaded] = useState(false);
 
   const latestStateRef = useRef<SavedState>({
-    version: 7,
-    totalXP: INITIAL_TOTAL_XP,
-    notes: [],
-    todayDate: getTodayJST(),
-    exercises: initialExercisesRef.current,
-    runMeters: 0,
-    currentPattern: "A",
-    lastPattern: null,
+    バージョン: 7、
+    合計XP: INITIAL_TOTAL_XP、
+    注記: [],
+    今日日付: getTodayJST()、
+    練習問題: initialExercisesRef.current、
+    ランメーター: 0、
+    現在のパターン: "A",
+    lastPattern: null、
   });
 
   const writeState = (next: SavedState) => {
@@ -783,12 +872,12 @@ export default function App() {
 
   const persistNow = (overrides: Partial<SavedState> = {}) => {
     const next: SavedState = {
-      ...latestStateRef.current,
-      ...overrides,
-      version: 7,
+      ...latestStateRef.current、
+      ...オーバーライド、
+      バージョン: 7、
     };
     writeState(next);
-    return next;
+    次の値を返す。
   };
 
   const applySavedState = (state: SavedState) => {
@@ -802,15 +891,15 @@ export default function App() {
     writeState(state);
   };
 
-  // PWA/ブラウザの戻るジェスチャーを、アプリ内の画面遷移として扱う。
+  // PWA/苦痛Λ繧ｦ繧カカリオンソシャクズセキュリティ監視€√i繝励Μ蜀��逕髱「驕ｷ遘其縺良縺励※謇ｱ縺€」
   useEffect(() => {
     if (!loaded || historyReadyRef.current) return;
 
     historyReadyRef.current = true;
     window.history.replaceState(
       { forgeView: "home", exerciseKey: null },
-      "",
-      window.location.href
+      「」、
+      ウィンドウの位置.href
     );
 
     const handlePopState = (event: PopStateEvent) => {
@@ -837,18 +926,18 @@ export default function App() {
     if (!toast) return;
     const timer = window.setTimeout(() => setToast(null), 2600);
     return () => window.clearTimeout(timer);
-  }, [toast]);
+  }, [トースト]);
 
   const notify = (
-    message: string,
-    tone: "success" | "error" | "info" = "info"
+    メッセージ: 文字列、
+    トーン: "成功" | "エラー" | "情報" = "情報"
   ) => setToast({ message, tone });
 
-  // PWA / モバイルブラウザで常に端末幅いっぱいに描画する。
+  // PWA / 繝「繝舌う繝ｫ繝悶Λ繧ｦ繧ｶ縺警備蟶ｸ縺ｫ遶アッ譛ｫ蟷�＞縺」縺ア縺↓謠恐れ判縺吶ｋ縲。
   useEffect(() => {
     let viewport = document.querySelector(
       'meta[name="viewport"]'
-    ) as HTMLMetaElement | null;
+    ) を HTMLMetaElement として | null;
 
     if (!viewport) {
       viewport = document.createElement("meta");
@@ -856,7 +945,7 @@ export default function App() {
       document.head.appendChild(viewport);
     }
 
-    viewport.content =
+    ビューポートコンテンツ =
       "width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover";
 
     const html = document.documentElement;
@@ -881,7 +970,7 @@ export default function App() {
     }
   }, []);
 
-  // Chrome/Google Translateによるブランド名・種目名の意図しない翻訳を抑止。
+  // Chrome/Google Translate縺ｫ繧医ク繝痛Λ繝ｳ繝牙展望繝その遞®逶リオン蜷阪�諢丞注目縺励↑縺�その險外繧呈椛豁「縲」
   useEffect(() => {
     document.documentElement.lang = "ja";
     document.documentElement.setAttribute("translate", "no");
@@ -902,20 +991,20 @@ export default function App() {
     };
   }, []);
 
-  // v7読み込み。v7がなければv6/v5/v4を自動移行する。
+  // v7 キューセキュリティ霎ｼ縺ｿ縲Ｗ7 後↑縺代l縺ーv6/v5/v4 決定、蜍慕アザ陦後☆繧九€。
   useEffect(() => {
     let raw: LegacySavedState | null = null;
 
-    try {
+    試す {
       const current = localStorage.getItem(LS_KEY);
       if (current) {
         raw = JSON.parse(current) as LegacySavedState;
-      } else {
+      } それ以外 {
         for (const key of LEGACY_LS_KEYS) {
           const legacy = localStorage.getItem(key);
-          if (legacy) {
+          if (レガシー) {
             raw = JSON.parse(legacy) as LegacySavedState;
-            break;
+            壊す;
           }
         }
       }
@@ -928,8 +1017,8 @@ export default function App() {
     setLoaded(true);
   }, []);
 
-  // バックグラウンド移行・画面OFF・タブ終了時は同期保存。
-  // 復帰・再表示時は日本時間の今日へ補正する。
+  // 上からのメッセージを送信後、「オフ」を選択してください。
+  // 蠕ｩ蟶ー繝サ蜀崎｡莉遉ｺ譎ゅ�譌･譛譎る俣田縺リオリ律頑固縺ｸ陬懈”縺吶ｋ縲。
   useEffect(() => {
     if (!loaded) return;
 
@@ -942,7 +1031,7 @@ export default function App() {
       if (latestStateRef.current.todayDate !== today) {
         setTodayDate(today);
         persistNow({ todayDate: today });
-      } else {
+      } それ以外 {
         saveLatest();
       }
     };
@@ -950,7 +1039,7 @@ export default function App() {
     const handleVisibilityChange = () => {
       if (document.visibilityState === "hidden") {
         saveLatest();
-      } else {
+      } それ以外 {
         syncToday();
       }
     };
@@ -971,7 +1060,7 @@ export default function App() {
   }, [loaded]);
 
   const updateExercisesAndPersist = (
-    updater: (prev: ExerciseTemplate[]) => ExerciseTemplate[]
+    アップデーター: (前: ExerciseTemplate[]) => ExerciseTemplate[]
   ) => {
     const nextExercises = updater(latestStateRef.current.exercises);
     setExercises(nextExercises);
@@ -981,17 +1070,17 @@ export default function App() {
 
   const visibleExercises = useMemo(
     () =>
-      exercises
+      演習
         .map((exercise, originalIndex) => ({ exercise, originalIndex }))
         .filter(({ exercise }) => exercise.pattern === currentPattern),
-    [exercises, currentPattern]
+    [エクササイズ、現在のパターン]
   );
 
-  // XPは現在選択中のA/Bメニューだけを対象にする。
-  // フォーム倍率は廃止。ランXPは単純加算。
+  // XP縺迴ｾ蝨良く驕ｸ謚樔ｸキュ縺®A/B繝｡繝九Η繝ｼ縺�縺代ｒ蟇ｾ雎｡縺ｫ縺吶ｋ縲。
+  // 繝輔か繝シ繝蛟咲紫縺アッ蟒「縲ゅΛ繝ぅXP縺アッ蜊倡エ聴覚刈邂励€」
   const calc = useMemo(
     () => calculateSessionXP(exercises, currentPattern, runMeters),
-    [exercises, currentPattern, runMeters]
+    [運動、現在のパターン、走行距離]
   );
 
   const lv = computeLevel(totalXP);
@@ -1008,12 +1097,12 @@ export default function App() {
   );
   const completedBaseExercises = currentBaseExercises.filter(({ exercise }) =>
     exercise.sets.some((set) => set.done)
-  ).length;
+  ）。長さ;
   const workoutProgress =
     currentBaseExercises.length === 0
-      ? 0
+      ？ 0
       : Math.round(
-          (completedBaseExercises / currentBaseExercises.length) * 100
+          (完了した基本運動数 / 現在の基本運動数.長さ) * 100
         );
 
   const handleDateChange = (value: string) => {
@@ -1028,24 +1117,24 @@ export default function App() {
   };
 
   const updateSetField = (
-    exIdx: number,
-    setIdx: number,
-    field: "weight" | "reps",
-    value: number
+    exIdx: 番号、
+    setIdx: 数値、
+    フィールド: "体重" | "回数"、
+    値: 数値
   ) => {
     updateExercisesAndPersist((prev) =>
       prev.map((exercise, index) =>
-        index === exIdx
-          ? {
-              ...exercise,
-              sets: exercise.sets.map((set, setIndex) =>
+        インデックス === exIdx
+          ？{
+              ...エクササイズ、
+              セット: exercise.sets.map((set, setIndex) =>
                 setIndex === setIdx
                   ? { ...set, [field]: Math.max(0, value) }
-                  : set
-              ),
+                  ： セット
+              )
             }
-          : exercise
-      )
+          ： エクササイズ
+      ）
     );
   };
 
@@ -1053,15 +1142,15 @@ export default function App() {
     if ("vibrate" in navigator) navigator.vibrate(12);
     updateExercisesAndPersist((prev) =>
       prev.map((exercise, index) =>
-        index === exIdx
-          ? {
-              ...exercise,
-              sets: exercise.sets.map((set, setIndex) =>
-                setIndex === setIdx ? { ...set, done: !set.done } : set
-              ),
+        インデックス === exIdx
+          ？{
+              ...エクササイズ、
+              セット: exercise.sets.map((set, setIndex) =>
+                setIndex === setIdx ? { ...セット、完了: !set.done } : セット
+              )
             }
-          : exercise
-      )
+          ： エクササイズ
+      ）
     );
   };
 
@@ -1071,14 +1160,14 @@ export default function App() {
         if (index !== exIdx) return exercise;
 
         const last = exercise.sets[exercise.sets.length - 1];
-        return {
-          ...exercise,
-          sets: [
-            ...exercise.sets,
+        戻る {
+          ...エクササイズ、
+          セット: [
+            ...エクササイズセット、
             {
-              weight: last?.weight ?? 0,
-              reps: last?.reps ?? 10,
-              done: false,
+              重量: 最後?.重量?? 0、
+              回数: 最後?.回数 ?? 10、
+              完了: false、
             },
           ],
         };
@@ -1098,13 +1187,14 @@ export default function App() {
   const addExtraExercise = () => {
     const key = createId("extra");
     updateExercisesAndPersist((prev) => [
-      ...prev,
+      ...前へ、
       {
-        key,
-        name: "追加種目",
-        isBase: false,
-        pattern: currentPattern,
-        sets: [{ weight: 20, reps: 10, done: false }],
+        鍵、
+        名前: "霑半蜉�遞®逶リオン",
+        isBase: false、
+        パターン: currentPattern、
+        セット: [{ 重量: 20、反復回数: 10、完了: false }]、
+        lastSessionSets: [],
         formVideos: [],
         lastFormMemo: "",
         formMemoDraft: "",
@@ -1117,16 +1207,16 @@ export default function App() {
 
   const deleteExercise = (exerciseKey: string) => {
     const target = latestStateRef.current.exercises.find(
-      (exercise) => exercise.key === exerciseKey
+      (エクササイズ) => exercise.key === exerciseKey
     );
 
     if (!target || target.isBase) return;
 
     setConfirmAction({
-      title: "種目を削除",
-      message: `「${target.name}」と、セット・動画・メモを削除します。`,
-      confirmLabel: "削除する",
-      tone: "danger",
+      タイトル: "遞®逶リオン繧貞炎髯､",
+      メッセージ: `縲�${target.name}縲阪→縲√そ繝�ヨ繝サ蜍慕判繝ｻ繝｡繝「繧貞炎髯､縺励∪縺吶€Ａ,
+      confirmLabel: "蜑企勁縺吶ｋ",
+      トーン：「危険」
       onConfirm: () => {
         const nextExercises = latestStateRef.current.exercises.filter(
           (exercise) => exercise.key !== exerciseKey
@@ -1142,7 +1232,7 @@ export default function App() {
         }
 
         setConfirmAction(null);
-        notify("種目を削除しました", "success");
+        Notice("遞®逶リオン繧貞炎髯､縺励∪縺励◆", "成功");
       },
     });
   };
@@ -1151,18 +1241,18 @@ export default function App() {
     updateExercisesAndPersist((prev) =>
       prev.map((exercise, index) =>
         index === exIdx ? { ...exercise, name } : exercise
-      )
+      ）
     );
   };
 
   const updateExercisePattern = (
-    exIdx: number,
-    pattern: WorkoutPattern
+    exIdx: 番号、
+    パターン: ワークアウトパターン
   ) => {
     updateExercisesAndPersist((prev) =>
       prev.map((exercise, index) =>
         index === exIdx ? { ...exercise, pattern } : exercise
-      )
+      ）
     );
   };
 
@@ -1170,7 +1260,7 @@ export default function App() {
     updateExercisesAndPersist((prev) =>
       prev.map((exercise, index) =>
         index === exIdx ? { ...exercise, formMemoDraft: value } : exercise
-      )
+      ）
     );
   };
 
@@ -1178,107 +1268,107 @@ export default function App() {
     const id = createId("video");
     updateExercisesAndPersist((prev) =>
       prev.map((exercise, index) =>
-        index === exIdx
-          ? {
-              ...exercise,
+        インデックス === exIdx
+          ？{
+              ...エクササイズ、
               formVideos: [
-                ...exercise.formVideos,
+                ...エクササイズフォームビデオ、
                 {
-                  id,
-                  title: `参考動画 ${exercise.formVideos.length + 1}`,
-                  url: "",
-                  startSeconds: 0,
+                  ID、
+                  title: `蜿莉€…虚 ${exercise.formVideos.length + 1}`,
+                  URL: "",
+                  開始秒数: 0、
                 },
               ],
             }
-          : exercise
-      )
+          ： エクササイズ
+      ）
     );
   };
 
   const updateFormVideo = (
-    exIdx: number,
-    videoId: string,
-    patch: Partial<FormVideo>
+    exIdx: 番号、
+    videoId: 文字列、
+    パッチ: 部分的な<FormVideo>
   ) => {
     updateExercisesAndPersist((prev) =>
       prev.map((exercise, index) =>
-        index === exIdx
-          ? {
-              ...exercise,
+        インデックス === exIdx
+          ？{
+              ...エクササイズ、
               formVideos: exercise.formVideos.map((video) =>
                 video.id === videoId
-                  ? {
-                      ...video,
-                      ...patch,
-                      startSeconds:
+                  ？{
+                      ...ビデオ、
+                      ...パッチ、
+                      開始秒数:
                         patch.startSeconds === undefined
                           ? video.startSeconds
-                          : clampStartSeconds(patch.startSeconds),
+                          : clampStartSeconds(patch.startSeconds)
                     }
-                  : video
-              ),
+                  ： ビデオ
+              )
             }
-          : exercise
-      )
+          ： エクササイズ
+      ）
     );
   };
 
   const updateVideoTimePart = (
-    exIdx: number,
-    video: FormVideo,
-    part: "minutes" | "seconds",
-    value: number
+    exIdx: 番号、
+    ビデオ: FormVideo、
+    部分:「分」｜「秒」
+    値: 数値
   ) => {
     const currentMinutes = Math.floor(video.startSeconds / 60);
     const currentSeconds = video.startSeconds % 60;
     const minutes =
       part === "minutes" ? Math.max(0, Math.floor(value || 0)) : currentMinutes;
-    const seconds =
-      part === "seconds"
+    const 秒 =
+      部分 === "秒"
         ? Math.min(59, Math.max(0, Math.floor(value || 0)))
-        : currentSeconds;
+        : 現在の秒数;
 
     updateFormVideo(exIdx, video.id, {
-      startSeconds: minutes * 60 + seconds,
+      startSeconds: 分 * 60 + 秒、
     });
   };
 
   const removeFormVideo = (exIdx: number, videoId: string) => {
     updateExercisesAndPersist((prev) =>
       prev.map((exercise, index) =>
-        index === exIdx
-          ? {
-              ...exercise,
+        インデックス === exIdx
+          ？{
+              ...エクササイズ、
               formVideos: exercise.formVideos.filter(
-                (video) => video.id !== videoId
-              ),
+                (ビデオ) => video.id !== videoId
+              )
             }
-          : exercise
-      )
+          ： エクササイズ
+      ）
     );
   };
 
   const moveFormVideo = (
-    exIdx: number,
-    videoId: string,
-    direction: -1 | 1
+    exIdx: 番号、
+    videoId: 文字列、
+    方向: -1 | 1
   ) => {
     updateExercisesAndPersist((prev) =>
       prev.map((exercise, index) => {
         if (index !== exIdx) return exercise;
 
         const currentIndex = exercise.formVideos.findIndex(
-          (video) => video.id === videoId
+          (ビデオ) => video.id === videoId
         );
         const targetIndex = currentIndex + direction;
 
-        if (
+        もし （
           currentIndex < 0 ||
           targetIndex < 0 ||
           targetIndex >= exercise.formVideos.length
         ) {
-          return exercise;
+          運動を再開する。
         }
 
         const nextVideos = [...exercise.formVideos];
@@ -1292,22 +1382,22 @@ export default function App() {
 
   const openFormVideo = (video: FormVideo) => {
     if (!video.url.trim()) {
-      notify("YouTube URLを入力してください", "error");
-      return;
+      Notice("YouTube URL繧貞�蜉帙＠縺ｦ縺上□縺輔＞", "error");
+      戻る;
     }
 
-    // YouTubeへ遷移する直前に、最新のセット・重量・回数等を同期保存する。
+    // YouTube 縺ｸ驕ｷ遘ｻ縺吶ｋ逶エ蜑阪↓縲∵怙譁ー縺®繝�ヨ繝注目㍼繝その蝗樊焚遲峨ｒ蜷梧悄虏急☆繧九ユーロ。
     localStorage.setItem(LS_KEY, JSON.stringify(latestStateRef.current));
 
     const targetUrl = buildVideoUrl(video);
-    if (!targetUrl) return;
+    ターゲットURLがない場合は、返します。
 
     const link = document.createElement("a");
     link.href = targetUrl;
     link.target = "_blank";
     link.rel = "noopener noreferrer";
     document.body.appendChild(link);
-    link.click();
+    リンクをクリックする。
     document.body.removeChild(link);
   };
 
@@ -1326,9 +1416,9 @@ export default function App() {
     setTodayDate(today);
 
     persistNow({
-      exercises: nextExercises,
-      runMeters: 0,
-      todayDate: today,
+      練習問題: 次の練習問題、
+      ランメーター: 0、
+      今日日付: 今日、
     });
   };
 
@@ -1336,14 +1426,14 @@ export default function App() {
     const snapshot = latestStateRef.current;
     const committedPattern = snapshot.currentPattern;
     const snapshotCalc = calculateSessionXP(
-      snapshot.exercises,
-      committedPattern,
-      snapshot.runMeters
+      スナップショット.エクササイズ、
+      コミットパターン、
+      スナップショット.runMeters
     );
 
     if (snapshotCalc.finalXP <= 0) {
-      notify("セット完了、またはラン距離を入力してください", "info");
-      return;
+      Notice("繧其繝�ヨ螳御ｺ�€√∪縺溘�繝ｩ繝ｳ霍晞屬繧貞�蜉帙＠縺ｦ縺上□縺輔＞", "info");
+      戻る;
     }
 
     const oldLevel = computeLevel(snapshot.totalXP).level;
@@ -1354,44 +1444,55 @@ export default function App() {
     const nextExercises = snapshot.exercises.map((exercise) => {
       if (exercise.pattern !== committedPattern) return exercise;
 
-      const performed = exercise.sets.some((set) => set.done);
+      const completedSets = exercise.sets
+        .filter((set) => set.done)
+        .map(({ weight, reps }) => ({ weight, reps }));
+
+      const performed = completedSets.length > 0;
       const nextMemo =
-        performed && exercise.formMemoDraft.trim()
+        実行済み && exercise.formMemoDraft.trim()
           ? exercise.formMemoDraft.trim()
           : exercise.lastFormMemo;
 
-      return {
-        ...exercise,
-        lastFormMemo: nextMemo,
+      戻る {
+        ...エクササイズ、
+        // 縲悟燕蝗槭�險倬 健全縲阪�迴説蝨良蜈･蜉帑クキュ縺®繧其繝�ヨ縺®縺アッ蛻･縺ｫ菫晄撃縺吶ｋ縲。
+        // 縺薙l縺ｫ繧医j谺｡蝗槭そ繝す繝法繝ｳ荳キュ縺ｫ驥彩㍼繧貞､画峩縺励※繧ゅ€�
+        // 蜑榊屓螳溽ｸｾ縺御ｸ頑固嶌縺阪＆繧後↑縺�€�
+        lastSessionSets:
+          completedSets.length > 0
+            ?完了セット
+            : exercise.lastSessionSets、
+        lastFormMemo: nextMemo、
         formMemoDraft: "",
-        sets: exercise.sets.map((set) => ({ ...set, done: false })),
+        セット: exercise.sets.map((set) => ({ ...set, done: false })),
       };
     });
 
     const nextNotes: Note[] = [
       {
-        date: snapshot.todayDate || today,
-        xp: snapshotCalc.finalXP,
-        memo: `筋トレ${pretty(snapshotCalc.strengthXP)}XP / ラン${pretty(snapshotCalc.runXP)}XP`,
-        pattern: committedPattern,
+        日付: snapshot.todayDate || 今日、
+        xp: snapshotCalc.finalXP、
+        メモ: `遲九ヨ繝ar${pretty(snapshotCalc.strengthXP)}XP / 繝ｩ繝ウー${pretty(snapshotCalc.runXP)}XP`,
+        パターン: committedPattern、
       },
-      ...snapshot.notes,
+      ...スナップショット.メモ、
     ];
 
     const nextPattern = oppositePattern(committedPattern);
 
     const nextState: SavedState = {
-      version: 7,
-      totalXP: nextTotalXP,
-      notes: nextNotes,
-      todayDate: today,
-      exercises: nextExercises,
-      runMeters: 0,
-      currentPattern: nextPattern,
-      lastPattern: committedPattern,
+      バージョン: 7、
+      合計XP: 次の合計XP、
+      注記: 次の注記、
+      今日日付: 今日、
+      練習問題: 次の練習問題、
+      ランメーター: 0、
+      currentPattern: nextPattern、
+      lastPattern: committedPattern、
     };
 
-    // XP確定はState更新より先に完成状態をlocalStorageへ一括保存する。
+    // XP遒ｺ螳壹�State譖エ譁ー繧医j蜈医↓螳梧�迥ｶ諷九ｒlocalStorage縺ｸ荳€諡シャル菫晏シュー倥☆繧九€�
     writeState(nextState);
 
     setTotalXP(nextState.totalXP);
@@ -1408,22 +1509,22 @@ export default function App() {
     if (historyReadyRef.current) {
       window.history.replaceState(
         { forgeView: "home", exerciseKey: null },
-        "",
-        window.location.href
+        「」、
+        ウィンドウの位置.href
       );
     }
 
     setCelebration({
-      xp: snapshotCalc.finalXP,
-      oldLevel,
-      newLevel,
+      xp: snapshotCalc.finalXP、
+      古いレベル、
+      新しいレベル、
     });
   };
 
   const exportJSON = () => {
     const payload = latestStateRef.current;
     const blob = new Blob([JSON.stringify(payload, null, 2)], {
-      type: "application/json",
+      タイプ: "application/json",
     });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -1431,7 +1532,7 @@ export default function App() {
     a.download = `xp-backup-${getTodayJST()}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    notify("バックアップを書き出しました", "success");
+    Notice("繝舌ャ繧ッ繧「繝��繧呈嶌縺榊�縺励∪縺励◆", "成功");
   };
 
   const importJSON = () => {
@@ -1445,13 +1546,13 @@ export default function App() {
 
       const reader = new FileReader();
       reader.onload = () => {
-        try {
+        試す {
           const raw = JSON.parse(String(reader.result)) as LegacySavedState;
           const restored = buildStateFromRaw(raw);
-          applySavedState(restored);
-          notify("バックアップを復元しました", "success");
+          applySavedState(復元済み);
+          通知("繝舌ャ繧ッ繧「繝��繧貞ｾｩ蜈�＠縺奢縺励◆", "成功");
         } catch {
-          notify("バックアップファイルを確認してください", "error");
+          Notice("繝舌ャ繧ッ繧「繝��繝輔ぃ繧､繝ｫ繧堤「ｺ隱阪＠縺ｦ縺上□縺輔＞」, "error");
         }
       };
       reader.readAsText(file);
@@ -1462,14 +1563,14 @@ export default function App() {
 
   const performHardReset = () => {
     const nextState: SavedState = {
-      version: 7,
-      totalXP: INITIAL_TOTAL_XP,
-      notes: [],
-      todayDate: getTodayJST(),
-      exercises: createInitialExercises(),
-      runMeters: 0,
-      currentPattern: "A",
-      lastPattern: null,
+      バージョン: 7、
+      合計XP: INITIAL_TOTAL_XP、
+      注記: [],
+      今日日付: getTodayJST()、
+      練習問題: createInitialExercises()、
+      ランメーター: 0、
+      現在のパターン: "A",
+      lastPattern: null、
     };
 
     writeState(nextState);
@@ -1487,43 +1588,43 @@ export default function App() {
     if (historyReadyRef.current) {
       window.history.replaceState(
         { forgeView: "home", exerciseKey: null },
-        "",
-        window.location.href
+        「」、
+        ウィンドウの位置.href
       );
     }
     setCelebration(null);
     setConfirmAction(null);
-    notify("初期状態に戻しました", "success");
+    Notice("蛻晄悄迥ｶ諷九↓謌其励∪縺励◆", "成功");
   };
 
   const hardReset = () => {
     setConfirmAction({
-      title: "全データをリセット",
-      message:
-        "累計XP、履歴、種目設定、動画、メモを初期状態へ戻します。この操作は元に戻せません。",
-      confirmLabel: "リセットする",
-      tone: "danger",
-      onConfirm: performHardReset,
+      タイトル: "蜈良く繝��繧そ繧偵Μ繧その繝�ヨ",
+      メッセージ：
+        "邏險�XP縲∝リア・豁エ縲∫®®逶リオン險セキュリティ壹€∝仮想その縲√Γ繝「繧貞�譛」溽憾諷九∈謌その縺励∪縺吶€yu％縺®謫堺ｽ懊�蜈�↓謌その縺帙∪縺帙ｓ縲�",
+      confirmLabel: "繝™繧其繝�ヨ縺吶ｋ",
+      トーン：「危険」
+      onConfirm: ハードリセットを実行します。
     });
   };
 
   if (!loaded) {
-    return (
+    戻る （
       <div
-        translate="no"
+        translate="いいえ"
         className="notranslate min-h-screen bg-[#f4f6f8] flex items-center justify-center text-slate-500"
       >
         <div className="flex flex-col items-center gap-4">
           <div className="text-slate-800">
             <ForgeLogo />
           </div>
-          <div className="text-sm">読み込み中...</div>
+          <div className="text-sm">セキュリティ...</div>
         </div>
       </div>
     );
   }
 
-  const motivationPhrase =
+  const motivationPhr =
     MOTIVATION_PHRASES[notes.length % MOTIVATION_PHRASES.length];
 
   const standardVisibleExercises = visibleExercises.filter(
@@ -1533,15 +1634,15 @@ export default function App() {
   const selectedEntry =
     selectedExerciseKey === null
       ? null
-      : exercises
+      : 練習問題
           .map((exercise, originalIndex) => ({ exercise, originalIndex }))
           .find(({ exercise }) => exercise.key === selectedExerciseKey) ?? null;
 
   const pushView = (view: ViewMode, exerciseKey: string | null = null) => {
     window.history.pushState(
       { forgeView: view, exerciseKey },
-      "",
-      window.location.href
+      「」、
+      ウィンドウの位置.href
     );
     setViewMode(view);
     setSelectedExerciseKey(view === "exercise" ? exerciseKey : null);
@@ -1564,8 +1665,8 @@ export default function App() {
   const goHomeInApp = () => {
     window.history.pushState(
       { forgeView: "home", exerciseKey: null },
-      "",
-      window.location.href
+      「」、
+      ウィンドウの位置.href
     );
     setViewMode("home");
     setSelectedExerciseKey(null);
@@ -1584,10 +1685,10 @@ export default function App() {
       <div
         className={`${pageWidth} grid h-[72px] grid-cols-[48px_1fr_48px] items-center px-3 md:mx-auto md:max-w-2xl`}
       >
-        <button
+        <ボタン>
           onClick={() => pushView("settings")}
           className="flex h-10 w-10 items-center justify-center rounded-full text-slate-700 transition active:bg-slate-100"
-          aria-label="設定"
+          aria-label="險螳"
         >
           <span className="space-y-[4px]" aria-hidden="true">
             <span className="block h-[2px] w-[18px] rounded bg-current" />
@@ -1598,17 +1699,17 @@ export default function App() {
 
         <div className="text-center leading-none">
           <div className="text-[18px] font-semibold tracking-[0.22em] text-slate-900">
-            FORGE
+            フォージ
           </div>
           <div className="mt-1.5 text-[9px] uppercase tracking-[0.28em] text-slate-400">
-            Training Log
+            トレーニングログ
           </div>
         </div>
 
-        <button
+        <ボタン>
           onClick={() => pushView("history")}
           className="justify-self-end flex h-10 w-10 items-center justify-center rounded-full text-slate-700 transition active:bg-slate-100"
-          aria-label="履歴"
+          aria-label="螻･豁エ"
         >
           <svg
             viewBox="0 0 24 24"
@@ -1625,28 +1726,28 @@ export default function App() {
 
 
   const TopBar = ({
-    titleText,
+    タイトルテキスト、
   }: {
-    titleText: string;
+    タイトルテキスト: 文字列;
   }) => (
     <header className="sticky top-0 z-40 border-b border-slate-100 bg-white/95 backdrop-blur">
       <div className={`${pageWidth} grid h-16 grid-cols-[48px_1fr_48px] items-center px-2 md:mx-auto md:max-w-2xl`}>
-        <button
+        <ボタン>
           onClick={goBackInApp}
           className="flex h-10 w-10 items-center justify-center rounded-full text-2xl text-slate-700 active:bg-slate-100"
-          aria-label="戻る"
+          aria-label="謌其繧"
         >
-          ‹
+          窶ケ
         </button>
         <div className="truncate text-center text-base font-semibold tracking-wide text-slate-900">
           {titleText}
         </div>
-        <button
+        <ボタン>
           onClick={goHomeInApp}
           className="flex h-10 w-10 items-center justify-center rounded-full text-lg text-slate-400 active:bg-slate-100"
-          aria-label="ホーム"
+          aria-label="繝帙�繝"
         >
-          ···
+          ������������
         </button>
       </div>
     </header>
@@ -1654,26 +1755,26 @@ export default function App() {
 
   const MobileNav = ({ active }: { active: ViewMode }) => {
     const items: Array<{
-      view: "home" | "history" | "stats" | "settings";
-      label: string;
-      icon: "home" | "history" | "stats" | "settings";
+      表示: "ホーム" | "履歴" | "統計" | "設定";
+      ラベル: 文字列;
+      アイコン: 「ホーム」｜「履歴」｜「統計」｜「設定」
     }> = [
-      { view: "home", label: "ホーム", icon: "home" },
-      { view: "history", label: "記録", icon: "history" },
-      { view: "stats", label: "統計", icon: "stats" },
-      { view: "settings", label: "設定", icon: "settings" },
+      { view: "home", label: "繝帙�繝�", icon: "home" },
+      { ビュー: "履歴", ラベル: "險倬恐怖", アイコン: "履歴" },
+      { ビュー: "統計"、ラベル: "邨亜險"、アイコン: "統計" },
+      { view: "settings", label: "非表示", icon: "settings" },
     ];
 
     const iconNode = (icon: "home" | "history" | "stats" | "settings") => {
       if (icon === "home") {
-        return (
+        戻る （
           <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
             <path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z" />
           </svg>
         );
       }
       if (icon === "history") {
-        return (
+        戻る （
           <svg
             viewBox="0 0 24 24"
             className="h-5 w-5 fill-none stroke-current"
@@ -1685,7 +1786,7 @@ export default function App() {
         );
       }
       if (icon === "stats") {
-        return (
+        戻る （
           <svg
             viewBox="0 0 24 24"
             className="h-5 w-5 fill-none stroke-current"
@@ -1695,7 +1796,7 @@ export default function App() {
           </svg>
         );
       }
-      return (
+      戻る （
         <svg
           viewBox="0 0 24 24"
           className="h-5 w-5 fill-none stroke-current"
@@ -1707,29 +1808,29 @@ export default function App() {
       );
     };
 
-    return (
+    戻る （
       <nav className="fixed left-0 right-0 bottom-0 z-40 border-t border-slate-200/70 bg-white/95 px-4 pb-[max(10px,env(safe-area-inset-bottom))] pt-2 shadow-[0_-8px_28px_rgba(15,23,42,0.045)] backdrop-blur-xl">
         <div className={`${pageWidth} grid grid-cols-4 gap-1 md:mx-auto md:max-w-2xl`}>
           {items.map((item) => {
             const selected = active === item.view;
-            return (
-              <button
+            戻る （
+              <ボタン>
                 key={item.view}
                 onClick={() => {
                   if (item.view === "home") {
                     goHomeInApp();
-                  } else {
+                  } それ以外 {
                     pushView(item.view);
                   }
                 }}
                 className={`flex flex-col items-center gap-1 rounded-xl py-1.5 transition ${
-                  selected ? "text-sky-500" : "text-slate-400 active:bg-slate-50"
+                  選択されました ? "text-sky-500" : "text-slate-400 active:bg-slate-50"
                 }`}
               >
                 {iconNode(item.icon)}
                 <span
                   className={`text-[9px] ${
-                    selected ? "font-semibold" : "font-medium"
+                    選択済み ? "font-semibold" : "font-medium"
                   }`}
                 >
                   {item.label}
@@ -1746,24 +1847,24 @@ export default function App() {
     <div className="fixed left-0 right-0 bottom-0 z-50 border-t border-slate-700/20 bg-[#172238]/[0.985] px-4 py-3 text-white shadow-[0_-12px_32px_rgba(15,23,42,0.2)] backdrop-blur">
       <div className={`${pageWidth} flex items-center gap-3 md:mx-auto md:max-w-2xl`}>
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-lg text-sky-300">
-          ⚡
+          笞｡
         </span>
         <div className="min-w-0 flex-1">
           <div className="text-[9px] uppercase tracking-[0.18em] text-slate-400">
-            本日の獲得予定XP
+            譛チャ譌･縺®迯イ蠕嶺ｺ亥®感動P
           </div>
           <div className="mt-0.5 flex items-baseline gap-2">
             <span className="text-[20px] font-semibold">{pretty(calc.finalXP)} XP</span>
             <span className="truncate text-[10px] text-slate-400">
-              筋トレ {pretty(calc.strengthXP)} ・ ラン {pretty(calc.runXP)}
+              九曜 {pretty(calc.strengthXP)} と、{pretty(calc.runXP)}
             </span>
           </div>
         </div>
-        <button
+        <ボタン>
           onClick={commitToday}
           className="rounded-[16px] bg-gradient-to-r from-sky-400 to-blue-600 px-5 py-3 text-sm font-semibold shadow-lg shadow-sky-950/20 transition active:scale-[0.97]"
         >
-          保存 →
+          菫晏シュー、竊。
         </button>
       </div>
     </div>
@@ -1772,30 +1873,30 @@ export default function App() {
   let screen: JSX.Element;
 
   if (viewMode === "home") {
-    screen = (
+    画面 = (
       <div className={`${appShell} pb-24`}>
-        <BrandHeader />
+        <ブランドヘッダー />
         <div className={`${pageWidth} space-y-3 px-3 pt-3 md:mx-auto md:max-w-2xl`}>
 
           <section id="overview" className={`${card} p-5`}>
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-1 text-amber-300">
-                <span className="text-[20px]">❧</span>
+                <span className="text-[20px]">笶ｧ</span>
                 <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-                  Lv
+                  レベル
                 </span>
                 <span className="text-[30px] font-semibold leading-none text-slate-950">
                   {lv.level}
                 </span>
-                <span className="scale-x-[-1] text-[20px]">❧</span>
+                <span className="scale-x-[-1] text-[20px]">笶ｧ</span>
               </div>
 
               <div className="min-w-0 flex-1 border-l border-slate-100 pl-3">
                 <div className="truncate text-[15px] font-semibold tracking-[-0.01em] text-slate-800">
-                  {title}
+                  {タイトル}
                 </div>
                 <div className="mt-1 text-[10px] text-slate-400">
-                  続ける。最強の才能だ。
+                  邯壹￠繧九€よ怙蠑ｷ縺®謇崎�縺�縲。
                 </div>
               </div>
             </div>
@@ -1812,17 +1913,17 @@ export default function App() {
                 <div
                   className="h-full rounded-full bg-gradient-to-r from-sky-400 via-sky-500 to-blue-600 transition-[width] duration-500"
                   style={{ width: `${levelProgress}%` }}
-                />
+                ＞
               </div>
               <div className="mt-2 flex items-center justify-between text-[10px] text-slate-400">
-                <span>次のレベルまで {pretty(Math.max(0, lv.toNext - lv.into))} XP</span>
+                <span>谺｡縺®繝カラー繝吶Ν縺セス縺§ {pretty(Math.max(0, lv.toNext - lv.into))} XP</span>
                 <span>Lv {Math.min(lv.level + 1, LEVEL_NEEDS.length + 1)}</span>
               </div>
             </div>
           </section>
 
           <section className="grid grid-cols-2 gap-3">
-            <button
+            <ボタン>
               onClick={() => lastPattern && selectPattern(lastPattern)}
               className={`${card} group flex items-center gap-3 p-3.5 text-left transition active:scale-[0.985]`}
             >
@@ -1834,27 +1935,27 @@ export default function App() {
               </span>
               <span className="min-w-0">
                 <span className="block text-[10px] font-semibold text-slate-400">
-                  前回のトレーニング
+                  蜑榊屓縺®繝医Ξ繝ｼ繝九Φ繧ー
                 </span>
                 <span className="mt-0.5 block truncate text-[14px] font-semibold">
-                  {lastPattern ? `${lastPattern}メニュー` : "記録なし"}
+                  {最後のパターン ? `${lastPattern}繝｡繝九Η繝ｼ` : "險倬恐怖縺™縺�"}
                 </span>
               </span>
             </button>
 
-            <button
+            <ボタン>
               onClick={() => selectPattern(recommendedPattern)}
               className="group flex items-center gap-3 rounded-[24px] border border-sky-100 bg-gradient-to-br from-white to-sky-50 p-3.5 text-left shadow-[0_10px_30px_rgba(15,23,42,0.045)] transition active:scale-[0.985]"
             >
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-sky-500 shadow-sm">
-                ★
+                笘
               </span>
               <span className="min-w-0">
                 <span className="block text-[10px] font-semibold text-sky-500">
-                  あなたへのおすすめ
+                  縺ゅ↑縺溘∈縺®縺翫☆縺吶a
                 </span>
                 <span className="mt-0.5 block truncate text-[14px] font-semibold">
-                  {recommendedPattern}メニュー
+                  {推奨パターン}繝｡繝九Η繝紙
                 </span>
               </span>
             </button>
@@ -1863,38 +1964,38 @@ export default function App() {
           <section id="today-menu" className={`${card} p-5`}>
             <div>
               <h2 className="text-xl font-semibold tracking-[-0.02em]">
-                本日のメニュー
+                譛譌･縺®繝｡繝九Η繝ｼ
               </h2>
-              <input
-                type="date"
+              <入力
+                タイプ="日付"
                 value={todayDate}
                 onChange={(event: ChangeEvent<HTMLInputElement>) =>
                   handleDateChange(event.target.value)
                 }
                 className="mt-2 border-0 bg-transparent p-0 text-xs text-slate-400 outline-none"
-              />
+              ＞
             </div>
 
             <div className="mt-4 grid grid-cols-2 gap-2">
               {(["A", "B"] as WorkoutPattern[]).map((pattern) => {
                 const selected = currentPattern === pattern;
-                return (
-                  <button
-                    key={pattern}
+                戻る （
+                  <ボタン>
+                    キー={パターン}
                     onClick={() => selectPattern(pattern)}
                     className={`rounded-[18px] border px-4 py-3 text-left transition-all duration-200 active:scale-[0.985] ${
-                      selected
+                      選択済み
                         ? "border-sky-500 bg-white text-sky-600 shadow-[0_8px_24px_rgba(14,165,233,0.12)] ring-1 ring-sky-100"
                         : "border-slate-200 bg-white text-slate-700"
                     }`}
                   >
-                    <div className="text-base font-semibold">{pattern}メニュー</div>
+                    <div className="text-base font-semibold">{pattern}繝｡繝九Η繝し</div>
                     <div
                       className={`mt-1 text-[11px] ${
-                        selected ? "text-slate-300" : "text-slate-400"
+                        選択されましたか？「text-slate-300」:「text-slate-400」
                       }`}
                     >
-                      {pattern === "A" ? "胸・肩・腕（三頭筋）" : "背中・腕・体幹・脚"}
+                      {パターン === "A" ? "閭クロックサヤン輔���ナダケケサ閼�"}
                     </div>
                   </button>
                 );
@@ -1905,24 +2006,24 @@ export default function App() {
               <img
                 src={EVEREST_ART_URL}
                 alt=""
-                loading="lazy"
+                読み込み中="lazy"
                 referrerPolicy="no-referrer"
                 className="pointer-events-none absolute bottom-[-10px] right-[-18px] h-[145px] w-[190px] object-cover object-center"
                 style={{
-                  opacity: 0.13,
-                  filter: "grayscale(1) contrast(.9) brightness(1.16)",
+                  不透明度: 0.13、
+                  フィルター: "グレースケール(1) コントラスト(.9) 明るさ(1.16)",
                   maskImage: "linear-gradient(to top, black 58%, transparent 100%)",
                 }}
-              />
+              ＞
 
               <div className="relative z-10 grid grid-cols-[1.08fr_.92fr] gap-2">
                 <div className="pt-1">
                   <div className="mb-3 text-sm font-semibold text-slate-800">
-                    {currentPattern}メニューの種目
+                    {現在のパターン}繝。
                   </div>
                   <div className="space-y-2.5">
                     {standardVisibleExercises.map(({ exercise }, index) => (
-                      <button
+                      <ボタン>
                         key={exercise.key}
                         onClick={() => openExerciseDetail(exercise.key)}
                         className="flex w-full min-w-0 items-center gap-2 text-left transition active:translate-x-0.5"
@@ -1931,7 +2032,7 @@ export default function App() {
                           {index + 1}
                         </span>
                         <span className="truncate text-[13px] font-semibold text-slate-700">
-                          {exercise.name}
+                          {エクササイズ名}
                         </span>
                       </button>
                     ))}
@@ -1939,9 +2040,9 @@ export default function App() {
                 </div>
 
                 <div className="flex min-h-[168px] flex-col items-end pt-1 text-right">
-                  <div className="text-[36px] font-serif leading-none text-slate-200">“</div>
+                  <div className="text-[36px] font-serif leading-none text-slate-200">窶�</div>
                   <div className="-mt-2 max-w-[138px] text-[12px] font-medium leading-[1.8] text-slate-500">
-                    {motivationPhrase}
+                    {動機付けフレーズ}
                   </div>
                 </div>
               </div>
@@ -1949,30 +2050,30 @@ export default function App() {
 
             <div className="mt-5">
               <div className="mb-2 flex items-center justify-between text-sm">
-                <span className="font-semibold text-slate-700">今日の進捗</span>
+                <span className="font-semibold text-slate-700">莉頑律縺®騾意謐�</span>
                 <span className="font-semibold text-slate-700">
-                  {completedBaseExercises} / {currentBaseExercises.length}
+                  {完了した基本運動} / {現在の基本運動の長さ}
                 </span>
               </div>
               <div className="h-2 overflow-hidden rounded-full bg-slate-100">
                 <div
                   className="h-full rounded-full bg-sky-500"
                   style={{ width: `${workoutProgress}%` }}
-                />
+                ＞
               </div>
             </div>
 
-            <button
+            <ボタン>
               onClick={startTraining}
               className="mt-4 w-full rounded-2xl bg-gradient-to-r from-sky-500 to-blue-600 px-5 py-3.5 text-sm font-semibold text-white shadow-lg shadow-sky-900/15 active:scale-[0.99]"
             >
-              トレーニング開始 →
+              繝医Ξ繝ｼ繝九Φ繧ー髢句§ 竊。
             </button>
           </section>
 
           <details id="recent-sessions" className={`${card} p-4`}>
             <summary className="cursor-pointer list-none text-sm font-semibold text-slate-600">
-              最近のセッション
+              譛€霑代...その
             </summary>
             <div className="mt-3 space-y-2">
               {notes.slice(0, 6).map((note, index) => (
@@ -1982,13 +2083,13 @@ export default function App() {
                 >
                   <div className="text-xs text-slate-500">
                     {note.date}
-                    {note.pattern ? ` ・ ${note.pattern}メニュー` : ""}
+                    {ノート.パターン ? ` ` および ${note.pattern} ` : ""}
                   </div>
                   <div className="text-sm font-semibold">+{pretty(note.xp)} XP</div>
                 </div>
               ))}
               {notes.length === 0 && (
-                <div className="text-xs text-slate-400">まだ記録がありません</div>
+                <div className="text-xs text-slate-400">縺ｾ縺�險倬恐怖縺後≠繧翫∪縺帙ｓ</div>
               )}
             </div>
           </details>
@@ -1998,30 +2099,30 @@ export default function App() {
       </div>
     );
   } else if (viewMode === "history") {
-    screen = (
+    画面 = (
       <div className={`${appShell} pb-24`}>
-        <BrandHeader />
+        <ブランドヘッダー />
         <main className={`${pageWidth} px-3 py-4 md:mx-auto md:max-w-2xl`}>
           <div className="mb-4">
             <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-sky-500">
-              Training History
+              研修履歴
             </div>
             <h1 className="mt-1 text-[28px] font-semibold tracking-[-0.035em]">
-              記録
+              險倬の
             </h1>
             <p className="mt-1 text-sm text-slate-400">
-              積み上げたセッションを振り返れます。
+              遨阪∩荳翫￡縺溘そ繝す繝§繝ｳ繧呈真剣繧願志願l縺セス縺吶€。
             </p>
           </div>
 
           {notes.length === 0 ? (
             <section className={`${card} p-7 text-center`}>
               <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-sky-50 text-sky-500">
-                ✓
+                笨
               </div>
-              <div className="mt-4 font-semibold">まだ記録はありません</div>
+              <div className="mt-4 font-semibold">縺ｾ縺�險倬賢縺アッ縺ゅj縺ｾ縺帙ｓ</div>
               <div className="mt-1 text-xs text-slate-400">
-                最初のセッションを保存するとここに表示されます。
+                譛€蛻昴ã ã‚¹ã‚¹ã‚¿ã‚¿
               </div>
             </section>
           ) : (
@@ -2030,18 +2131,18 @@ export default function App() {
                 <div
                   key={`${note.date}-${index}-${note.xp}`}
                   className={`flex items-center gap-3 px-4 py-4 ${
-                    index > 0 ? "border-t border-slate-100" : ""
+                    インデックス > 0 ? "border-t border-slate-100" : ""
                   }`}
                 >
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-500">
-                    {note.pattern ?? "–"}
+                    {note.pattern ?? "窶�"}
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-semibold">
-                      {note.pattern ? `${note.pattern}メニュー` : "トレーニング"}
+                      {ノート.パターン ? `${note.pattern}繝｡繝九Η繝ｼ` : "繝医Ξ繝ｼ繝九Φ繧ー"}
                     </div>
                     <div className="mt-0.5 truncate text-[11px] text-slate-400">
-                      {note.date} ・ {note.memo}
+                      {note.date} と {note.memo}
                     </div>
                   </div>
                   <div className="text-right">
@@ -2068,49 +2169,49 @@ export default function App() {
     const recentSeven = notes.slice(0, 7);
     const maxRecentXP = Math.max(1, ...recentSeven.map((note) => note.xp));
 
-    screen = (
+    画面 = (
       <div className={`${appShell} pb-24`}>
-        <BrandHeader />
+        <ブランドヘッダー />
         <main className={`${pageWidth} px-3 py-4 md:mx-auto md:max-w-2xl`}>
           <div className="mb-4">
             <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-sky-500">
-              Progress
+              進捗
             </div>
             <h1 className="mt-1 text-[28px] font-semibold tracking-[-0.035em]">
-              統計
+              邨亜險
             </h1>
             <p className="mt-1 text-sm text-slate-400">
-              続けた量を、数字で確認します。
+              邯壹￠縺滄㍼繧偵€∵焚蟄励〒遒ｺ隱阪＠縺ｾ縺吶€。
             </p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <section className={`${card} p-4`}>
               <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
-                Sessions
+                セッション
               </div>
               <div className="mt-2 text-[30px] font-semibold tracking-[-0.04em]">
                 {sessionCount}
               </div>
-              <div className="mt-1 text-xs text-slate-400">保存済みセッション</div>
+              <div className="mt-1 text-xs text-slate-400">安全な医療∩その表面</div>
             </section>
             <section className={`${card} p-4`}>
               <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
-                Logged XP
+                記録されたXP
               </div>
               <div className="mt-2 text-[30px] font-semibold tracking-[-0.04em]">
                 {pretty(totalLoggedXP)}
               </div>
-              <div className="mt-1 text-xs text-slate-400">履歴上の獲得XP</div>
+              <div className="mt-1 text-xs text-slate-400">螻･豁エ荳翫迯井蠕郵P</div>
             </section>
           </div>
 
           <section className={`${card} mt-3 p-5`}>
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-sm font-semibold">最近7セッション</div>
+                <div className="text-sm font-semibold">譛€霑�7その他の注意</div>
                 <div className="mt-1 text-[11px] text-slate-400">
-                  獲得XPのボリューム
+                  迯ai蠕郵P縺®繝懊Μ繝･繝ｼ繝。
                 </div>
               </div>
               <div className="text-[11px] text-slate-400">
@@ -2121,15 +2222,15 @@ export default function App() {
             <div className="mt-5 flex h-32 items-end gap-2">
               {recentSeven.length === 0 ? (
                 <div className="m-auto text-xs text-slate-400">
-                  セッションを保存するとグラフが表示されます
+                  ã‚¹ã‚¹ã‚¹ã‚¤ã‚¤ã‚¿
                 </div>
               ) : (
                 [...recentSeven].reverse().map((note, index) => {
                   const height = Math.max(
-                    12,
+                    12、
                     Math.round((note.xp / maxRecentXP) * 100)
                   );
-                  return (
+                  戻る （
                     <div
                       key={`${note.date}-${index}`}
                       className="flex min-w-0 flex-1 flex-col items-center justify-end gap-2"
@@ -2137,10 +2238,10 @@ export default function App() {
                       <div
                         className="w-full max-w-8 rounded-t-lg bg-gradient-to-t from-blue-600 to-sky-400 shadow-sm"
                         style={{ height: `${height}%` }}
-                        title={`${pretty(note.xp)} XP`}
-                      />
+                        タイトル={`${pretty(note.xp)} XP`}
+                      ＞
                       <span className="text-[9px] font-medium text-slate-400">
-                        {note.pattern ?? "–"}
+                        {note.pattern ?? "窶�"}
                       </span>
                     </div>
                   );
@@ -2150,11 +2251,11 @@ export default function App() {
           </section>
 
           <section className={`${card} mt-3 p-5`}>
-            <div className="text-sm font-semibold">現在地</div>
+            <div className="text-sm font-semibold">迴ｾ蝨®蝨ー</div>
             <div className="mt-4 flex items-end justify-between">
               <div>
                 <div className="text-[10px] uppercase tracking-[0.14em] text-slate-400">
-                  Total XP
+                  合計経験値
                 </div>
                 <div className="mt-1 text-[30px] font-semibold tracking-[-0.04em]">
                   {pretty(totalXP)}
@@ -2162,7 +2263,7 @@ export default function App() {
               </div>
               <div className="text-right">
                 <div className="text-[10px] uppercase tracking-[0.14em] text-slate-400">
-                  Level
+                  レベル
                 </div>
                 <div className="mt-1 text-[28px] font-semibold">Lv {lv.level}</div>
               </div>
@@ -2171,7 +2272,7 @@ export default function App() {
               <div
                 className="h-full rounded-full bg-gradient-to-r from-sky-400 to-blue-600"
                 style={{ width: `${levelProgress}%` }}
-              />
+              ＞
             </div>
           </section>
         </main>
@@ -2179,94 +2280,94 @@ export default function App() {
       </div>
     );
   } else if (viewMode === "settings") {
-    screen = (
+    画面 = (
       <div className={`${appShell} pb-24`}>
-        <TopBar titleText="設定" />
+        <TopBar titleText="險螳" />
         <main className={`${pageWidth} px-3 py-4 md:mx-auto md:max-w-2xl`}>
           <section className={`${card} overflow-hidden`}>
             <div className="px-5 py-4">
               <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
-                Data
+                データ
               </div>
-              <div className="mt-1 text-base font-semibold">バックアップ</div>
+              <div className="mt-1 text-base font-semibold">「繝舌」</div>
             </div>
-            <button
+            <ボタン>
               onClick={exportJSON}
               className="flex w-full items-center justify-between border-t border-slate-100 px-5 py-4 text-left"
             >
               <span>
-                <span className="block text-sm font-medium">JSONを書き出す</span>
+                <span className="block text-sm font-medium">JSON プレゼン嶌縺榊�縺�</span>
                 <span className="mt-0.5 block text-[11px] text-slate-400">
-                  XP・履歴・種目・動画設定を保存
+                  XP のセキュリティは、セキュリティを厳しく監視します。
                 </span>
               </span>
-              <span className="text-slate-300">›</span>
+              <span className="text-slate-300">窶</span>
             </button>
-            <button
+            <ボタン>
               onClick={importJSON}
               className="flex w-full items-center justify-between border-t border-slate-100 px-5 py-4 text-left"
             >
               <span>
-                <span className="block text-sm font-medium">バックアップを復元</span>
+                <span className="block text-sm font-medium">繝舌ャ繧ｯ繧「繝��繧貞ｾｩ蜈」</span>
                 <span className="mt-0.5 block text-[11px] text-slate-400">
-                  保存済みJSONから復元
+                  菫晏キュー俶クロック医∩JSON縺九i蠕ｩ蜈。
                 </span>
               </span>
-              <span className="text-slate-300">›</span>
+              <span className="text-slate-300">窶</span>
             </button>
           </section>
 
           <section className={`${card} mt-3 overflow-hidden`}>
             <div className="px-5 py-4">
               <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
-                Session
+                セッション
               </div>
-              <div className="mt-1 text-base font-semibold">入力管理</div>
+              <div className="mt-1 text-base font-semibold">蜈･蜉帷®｡逅�</div>
             </div>
-            <button
+            <ボタン>
               onClick={() => {
                 resetToday();
-                notify("今日の入力をリセットしました", "success");
+                Notice("莉頑律縺®蜈･蜉帙ｒ繝™繧その繝�ヨ縺励∪縺励◆", "成功");
               }}
               className="flex w-full items-center justify-between border-t border-slate-100 px-5 py-4 text-left"
             >
               <span>
-                <span className="block text-sm font-medium">今日の入力をリセット</span>
+                <span className="block text-sm font-medium">莉頑律縺®蜈･蜉帙ｒ繝™繧其繝�ヨ</span>
                 <span className="mt-0.5 block text-[11px] text-slate-400">
-                  XP・履歴は維持します
+                  XP 補足√＠縺客縺。
                 </span>
               </span>
-              <span className="text-slate-300">›</span>
+              <span className="text-slate-300">窶</span>
             </button>
           </section>
 
           <section className="mt-3 overflow-hidden rounded-[24px] border border-red-100 bg-white shadow-[0_10px_34px_rgba(15,23,42,0.045)]">
             <div className="px-5 py-4">
               <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-red-400">
-                Danger Zone
+                危険地帯
               </div>
-              <div className="mt-1 text-base font-semibold">全データ</div>
+              <div className="mt-1 text-base font-semibold">蜈莉繝��繧ソ</div>
             </div>
-            <button
+            <ボタン>
               onClick={hardReset}
               className="flex w-full items-center justify-between border-t border-red-50 px-5 py-4 text-left"
             >
               <span>
                 <span className="block text-sm font-medium text-red-600">
-                  初期状態へ戻す
+                  蛻晄悄迥ｶ諷九∈謌沙
                 </span>
                 <span className="mt-0.5 block text-[11px] text-slate-400">
-                  この操作は元に戻せません
+                  縺薙�謫堺スパ懊�蜈�↓謌その縺帙∪縺帙ｓ
                 </span>
               </span>
-              <span className="text-red-300">›</span>
+              <span className="text-red-300">窶 </span>
             </button>
           </section>
 
           <div className="mt-5 px-3 text-center text-[9px] leading-5 text-slate-400">
-            FORGE Training Log
+            FORGEトレーニングログ
             <br />
-            Muscle artwork: FORGE custom PNG illustration set
+            筋肉のアートワーク：FORGEカスタムPNGイラストセット
             
           </div>
         </main>
@@ -2274,28 +2375,28 @@ export default function App() {
       </div>
     );
   } else if (viewMode === "training") {
-    screen = (
+    画面 = (
       <div className={`${appShell} pb-28`}>
-        <TopBar titleText={`${currentPattern}メニュー`} />
+        <TopBar titleText={`${currentPattern}繝｡繝九Η繝ｼ`} />
 
         <main className={`${pageWidth} px-3 py-4 md:mx-auto md:max-w-2xl`}>
           <section className="mb-4">
             <div className="flex items-center justify-between">
               <div className="text-xs text-slate-500">
-                {currentPattern === "A" ? "胸・肩・腕" : "背中・腕・体幹・脚"}を鍛えるメニュー
+                {現在のパターン === "A" ? "閭クロックササヤｩサヤンサ" : "閭マクロササヤンヤナダケケケサ閼"}
               </div>
               <div className="text-[17px] font-semibold tracking-[-0.02em] text-slate-800">
                 <span className="text-sky-500">{completedBaseExercises}</span>
                 <span className="text-slate-400"> / </span>
                 {currentBaseExercises.length}
-                <span className="ml-1 text-sm font-medium">種目完了</span>
+                <span className="ml-1 text-sm font-medium">遞®逶リオ螳御ｺ�</span>
               </div>
             </div>
             <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-slate-200">
               <div
                 className="h-full rounded-full bg-sky-500"
                 style={{ width: `${workoutProgress}%` }}
-              />
+              ＞
             </div>
           </section>
 
@@ -2303,62 +2404,57 @@ export default function App() {
             {visibleExercises.map(({ exercise, originalIndex }, visualIndex) => {
               const isOpen = openExerciseKey === exercise.key;
               const doneSets = exercise.sets.filter((set) => set.done).length;
-              const firstSet = exercise.sets[0];
-
-              return (
-                <article
+              戻る （
+                <記事>
                   key={exercise.key}
                   className={`${card} overflow-hidden transition-shadow duration-200 ${isOpen ? "shadow-[0_20px_55px_rgba(15,23,42,0.10)]" : ""}`}
                 >
                   <div className="flex items-center gap-3 px-3.5 py-3">
-                    <button
+                    <ボタン>
                       onClick={() =>
                         setOpenExerciseKey((prev) =>
                           prev === exercise.key ? null : exercise.key
-                        )
+                        ）
                       }
                       className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${
-                        doneSets > 0
-                          ? "bg-emerald-500 text-white"
+                        完了セット > 0
+                          ？「bg-emerald-500 text-white」
                           : exercise.isBase
-                          ? "bg-sky-500 text-white"
+                          ？「bg-sky-500 text-white」
                           : "bg-slate-200 text-slate-500"
                       }`}
                     >
                       {doneSets === exercise.sets.length && doneSets > 0
-                        ? "✓"
+                        ? 「笨」
                         : exercise.isBase
                         ? visualIndex + 1
                         : "+"}
                     </button>
 
-                    <button
+                    <ボタン>
                       onClick={() => openExerciseDetail(exercise.key)}
                       className="flex min-w-0 flex-1 items-center gap-3 text-left"
                     >
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-base font-semibold tracking-[-0.01em] text-slate-900">
-                          {exercise.name}
+                          {エクササイズ名}
                         </span>
-                        <span className="mt-1 block text-[11px] text-slate-400">
-                          前回{" "}
-                          {firstSet
-                            ? `${firstSet.weight}kg × ${firstSet.reps} × ${exercise.sets.length}`
-                            : "—"}
+                        <span className="mt-1 block truncate text-[11px] text-slate-400">
+                          蜑榊屓 {formatPreviousSets(exercise.lastSessionSets, true)}
                         </span>
                       </span>
                       <MuscleMap exercise={exercise} />
                     </button>
 
-                    <button
+                    <ボタン>
                       onClick={() =>
                         setOpenExerciseKey((prev) =>
                           prev === exercise.key ? null : exercise.key
-                        )
+                        ）
                       }
                       className="flex h-9 w-9 items-center justify-center rounded-full text-xl text-slate-300"
                     >
-                      {isOpen ? "⌃" : "›"}
+                      {オープンですか？ "竚�" : "窶ｺ"}
                     </button>
                   </div>
 
@@ -2371,35 +2467,35 @@ export default function App() {
                             className="grid grid-cols-[52px_1fr_1fr_auto] items-center gap-2 border-b border-slate-100 px-2 py-2 last:border-b-0"
                           >
                             <div className="text-xs font-medium text-slate-500">
-                              Set {setIndex + 1}
+                              {setIndex + 1} を設定します。
                             </div>
                             <div className="text-right text-xs text-slate-500">
                               {set.weight}kg
                             </div>
                             <div className="text-right text-xs text-slate-500">
-                              {set.reps}回
+                              {set.reps}蝗
                             </div>
-                            <button
+                            <ボタン>
                               onClick={() => toggleSetDone(originalIndex, setIndex)}
                               className="rounded-full"
                             >
-                              <SetStatusIcon done={set.done} />
+                              <SetStatusIcon 完了={set.done} />
                             </button>
                           </div>
                         ))}
                       </div>
 
                       <div className="mt-3 flex items-center gap-2">
-                        <button
+                        <ボタン>
                           onClick={() => openExerciseDetail(exercise.key)}
                           className="rounded-xl bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-600"
                         >
-                          ▶ 参考動画
+                          ଆｶ 蜿莉€...虚逕其の
                         </button>
                         <div className="min-w-0 flex-1 truncate text-right text-[11px] text-slate-400">
                           {exercise.lastFormMemo
-                            ? `前回メモ：${exercise.lastFormMemo}`
-                            : "前回メモ：なし"}
+                            ? `蜑榊屓繝｡繝「��${exercise.lastFormMemo}`」
+                            : "蜑榊屓繝｡繝「�壹↑縺�"}
                         </div>
                       </div>
                     </div>
@@ -2410,22 +2506,22 @@ export default function App() {
           </section>
 
           <div className="mt-4 grid grid-cols-2 gap-2">
-            <button
+            <ボタン>
               onClick={addExtraExercise}
               className="rounded-2xl border border-dashed border-slate-300 bg-white px-3 py-3 text-xs font-semibold text-slate-500"
             >
-              ＋自由種目を追加
+              �������������������������������
             </button>
             <div className={`${card} flex items-center gap-2 px-3 py-2`}>
-              <span className="text-xs font-semibold text-slate-500">ラン</span>
-              <input
+              <span className="text-xs font-semibold text-slate-500">繝ｩ繝ウー</span>
+              <入力
                 type="number"
                 value={runMeters}
                 onChange={(event: ChangeEvent<HTMLInputElement>) =>
                   updateRunMeters(Number(event.target.value || 0))
                 }
                 className="min-w-0 flex-1 border-0 bg-transparent text-right text-sm font-semibold outline-none"
-              />
+              ＞
               <span className="text-[10px] text-slate-400">m</span>
             </div>
           </div>
@@ -2436,9 +2532,8 @@ export default function App() {
     );
   } else if (selectedEntry) {
     const { exercise, originalIndex } = selectedEntry;
-    const firstSet = exercise.sets[0];
 
-    screen = (
+    画面 = (
       <div className={`${appShell} pb-28`}>
         <TopBar titleText="" />
 
@@ -2451,19 +2546,19 @@ export default function App() {
               <div className="min-w-0 flex-1">
                 {exercise.isBase ? (
                   <h1 className="text-[28px] font-semibold tracking-[-0.025em] text-slate-950">
-                    {exercise.name}
+                    {エクササイズ名}
                   </h1>
                 ) : (
-                  <input
+                  <入力
                     value={exercise.name}
                     onChange={(event: ChangeEvent<HTMLInputElement>) =>
                       updateExerciseName(originalIndex, event.target.value)
                     }
                     className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xl font-semibold outline-none focus:border-sky-400"
-                  />
+                  ＞
                 )}
                 <div className="mt-1 text-xs font-medium text-slate-400">
-                  {exercise.pattern}メニュー
+                  {exercise.pattern}繝｡繝九Η繝紙
                 </div>
               </div>
               <MuscleMap exercise={exercise} size="lg" />
@@ -2472,25 +2567,23 @@ export default function App() {
             <div className="mt-5 flex items-end justify-between rounded-[20px] bg-slate-50 p-4">
               <div>
                 <div className="text-[11px] font-semibold text-slate-400">
-                  前回の記録
+                  蜑榊屓縺リオン險倬
                 </div>
-                <div className="mt-1 text-[21px] font-semibold tracking-[-0.02em]">
-                  {firstSet
-                    ? `${firstSet.weight}kg × ${firstSet.reps} × ${exercise.sets.length}`
-                    : "—"}
+                <div className="mt-1 max-w-[250px] text-[18px] font-semibold leading-7 tracking-[-0.02em]">
+                  {formatPreviousSets(exercise.lastSessionSets)}
                 </div>
               </div>
-              <button
+              <ボタン>
                 onClick={() => setViewMode("home")}
                 className="text-[11px] font-semibold text-sky-500"
               >
-                過去の記録 ›
+                驕主悉縺®險倬音響 窶ｺ
               </button>
             </div>
           </section>
 
           <section className={`${card} mt-3 p-4`}>
-            <h2 className="text-base font-semibold">セットを記録</h2>
+            <h2 className="text-base font-semibold">そのほかのヨ繧定理倬音</h2>
 
             <div className="mt-3 space-y-2">
               {exercise.sets.map((set, setIndex) => (
@@ -2498,92 +2591,92 @@ export default function App() {
                   key={`${exercise.key}-${setIndex}`}
                   className="grid grid-cols-[50px_1fr_1fr_auto] items-center gap-2"
                 >
-                  <div className="text-sm font-medium">Set {setIndex + 1}</div>
+                  <div className="text-sm font-medium">{setIndex + 1} を設定</div>
                   <div className="relative">
-                    <input
+                    <入力
                       type="number"
                       value={set.weight}
                       onChange={(event: ChangeEvent<HTMLInputElement>) =>
                         updateSetField(
-                          originalIndex,
-                          setIndex,
-                          "weight",
-                          Number(event.target.value || 0)
-                        )
+                          オリジナルインデックス、
+                          setIndex、
+                          "重さ"、
+                          数値(イベント.ターゲット.値 || 0)
+                        ）
                       }
                       className="h-12 w-full rounded-[14px] border border-slate-200 bg-white px-2 pr-7 text-right text-[15px] font-semibold outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
-                    />
+                    ＞
                     <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">
                       kg
                     </span>
                   </div>
                   <div className="relative">
-                    <input
+                    <入力
                       type="number"
                       value={set.reps}
                       onChange={(event: ChangeEvent<HTMLInputElement>) =>
                         updateSetField(
-                          originalIndex,
-                          setIndex,
-                          "reps",
-                          Number(event.target.value || 0)
-                        )
+                          オリジナルインデックス、
+                          setIndex、
+                          「反復」
+                          数値(イベント.ターゲット.値 || 0)
+                        ）
                       }
                       className="h-12 w-full rounded-[14px] border border-slate-200 bg-white px-2 pr-7 text-right text-[15px] font-semibold outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
-                    />
+                    ＞
                     <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">
-                      回
+                      蝗
                     </span>
                   </div>
-                  <button
+                  <ボタン>
                     onClick={() => toggleSetDone(originalIndex, setIndex)}
                     className="rounded-full"
                   >
-                    <SetStatusIcon done={set.done} />
+                    <SetStatusIcon 完了={set.done} />
                   </button>
                 </div>
               ))}
             </div>
 
             <div className="mt-3 flex gap-2">
-              <button
+              <ボタン>
                 onClick={() => addSet(originalIndex)}
                 className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-600"
               >
-                ＋セット
+                「九そ繝よ」
               </button>
-              <button
+              <ボタン>
                 onClick={() => removeLastSet(originalIndex)}
                 className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-600"
               >
-                −セット
+                竏偵察そ繝よ
               </button>
             </div>
           </section>
 
           <section className={`${card} mt-3 p-4`}>
             <div className="flex items-center justify-between">
-              <h2 className="text-base font-semibold">フォーム参考動画</h2>
-              <button
+              <h2 className="text-base font-semibold">シュ輔か繝ｼ繝蜿り€ 虚その</h2>
+              <ボタン>
                 onClick={() => setDetailEditMode((prev) => !prev)}
                 className="rounded-xl px-3 py-2 text-xs font-semibold text-sky-600 hover:bg-sky-50"
               >
-                {detailEditMode ? "編集を閉じる" : "編集"}
+                {詳細編集モード ? "邱正当髮�ｒ髢峨§繧�" : "邱正当髮"}
               </button>
             </div>
 
             <div className="mt-3 overflow-hidden rounded-[22px] border border-slate-100 bg-slate-50/50">
               {exercise.formVideos.length === 0 ? (
                 <div className="px-4 py-4 text-xs text-slate-400">
-                  参考動画はまだ登録されていません。
+                  蜿莉€� 虚―そのサクサクセスサ� ザ・ザ・イ・サスケl縺ｦ縺�∪縺帙s縲。
                 </div>
               ) : (
                 exercise.formVideos.map((video, index) => (
-                  <button
+                  <ボタン>
                     key={video.id}
                     onClick={() => openFormVideo(video)}
                     className={`flex w-full items-center gap-3 px-3 py-3 text-left transition hover:bg-slate-50 active:bg-sky-50 ${
-                      index > 0 ? "border-t border-slate-100" : ""
+                      インデックス > 0 ? "border-t border-slate-100" : ""
                     }`}
                   >
                     <span className="relative h-[54px] w-[84px] shrink-0 overflow-hidden rounded-xl bg-slate-100 shadow-sm ring-1 ring-slate-100">
@@ -2591,28 +2684,28 @@ export default function App() {
                         <img
                           src={getYouTubeThumbnail(video.url)}
                           alt=""
-                          loading="lazy"
+                          読み込み中="lazy"
                           referrerPolicy="no-referrer"
                           className="h-full w-full object-cover"
-                        />
+                        ＞
                       ) : (
                         <span className="absolute inset-0 bg-gradient-to-br from-slate-100 to-white" />
                       )}
                       <span className="absolute inset-0 flex items-center justify-center bg-slate-950/15">
                         <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/95 pl-0.5 text-[11px] text-sky-500 shadow">
-                          ▶
+                          か
                         </span>
                       </span>
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-semibold">
-                        {video.title || `参考動画 ${index + 1}`}
+                        {ビデオ.タイトル || `蜿莉€…さらに ${index + 1}`}
                       </span>
                       <span className="mt-0.5 block text-[11px] text-slate-400">
-                        {formatStartTime(video.startSeconds)}から再生
+                        {formatStartTime(video.startSeconds)}縺九ｉ蜀咲関数
                       </span>
                     </span>
-                    <span className="text-slate-300">›</span>
+                    <span className="text-slate-300">窶</span>
                   </button>
                 ))
               )}
@@ -2626,121 +2719,121 @@ export default function App() {
                     className="rounded-2xl border border-slate-200 bg-white p-3"
                   >
                     <div className="flex gap-2">
-                      <input
+                      <入力
                         value={video.title}
                         onChange={(event: ChangeEvent<HTMLInputElement>) =>
                           updateFormVideo(originalIndex, video.id, {
-                            title: event.target.value,
+                            タイトル: event.target.value、
                           })
                         }
-                        placeholder="動画名"
+                        placeholder="蜍慕判蜷"
                         className="min-w-0 flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-400"
-                      />
-                      <button
+                      ＞
+                      <ボタン>
                         onClick={() =>
                           moveFormVideo(originalIndex, video.id, -1)
                         }
                         disabled={videoIndex === 0}
                         className="rounded-lg bg-slate-100 px-2 disabled:opacity-30"
                       >
-                        ↑
+                        竊
                       </button>
-                      <button
+                      <ボタン>
                         onClick={() =>
                           moveFormVideo(originalIndex, video.id, 1)
                         }
-                        disabled={
+                        無効={
                           videoIndex === exercise.formVideos.length - 1
                         }
                         className="rounded-lg bg-slate-100 px-2 disabled:opacity-30"
                       >
-                        ↓
+                        竊
                       </button>
                     </div>
-                    <input
+                    <入力
                       value={video.url}
                       onChange={(event: ChangeEvent<HTMLInputElement>) =>
                         updateFormVideo(originalIndex, video.id, {
-                          url: event.target.value,
+                          URL: event.target.value、
                         })
                       }
-                      placeholder="YouTube URL"
+                      プレースホルダー="YouTube URL"
                       className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-400"
-                    />
+                    ＞
                     <div className="mt-2 flex items-center gap-2">
-                      <span className="text-xs text-slate-400">開始</span>
-                      <input
+                      <span className="text-xs text-slate-400">髢句ｧ�</span>
+                      <入力
                         type="number"
                         min="0"
                         value={Math.floor(video.startSeconds / 60)}
                         onChange={(event: ChangeEvent<HTMLInputElement>) =>
                           updateVideoTimePart(
-                            originalIndex,
-                            video,
-                            "minutes",
-                            Number(event.target.value || 0)
-                          )
+                            オリジナルインデックス、
+                            ビデオ、
+                            "分"、
+                            数値(イベント.ターゲット.値 || 0)
+                          ）
                         }
                         className="w-16 rounded-xl border border-slate-200 px-2 py-2 text-center text-sm"
-                      />
-                      <span className="text-xs text-slate-400">分</span>
-                      <input
+                      ＞
+                      <span className="text-xs text-slate-400">蛻�</span>
+                      <入力
                         type="number"
                         min="0"
                         max="59"
                         value={video.startSeconds % 60}
                         onChange={(event: ChangeEvent<HTMLInputElement>) =>
                           updateVideoTimePart(
-                            originalIndex,
-                            video,
-                            "seconds",
-                            Number(event.target.value || 0)
-                          )
+                            オリジナルインデックス、
+                            ビデオ、
+                            「秒」
+                            数値(イベント.ターゲット.値 || 0)
+                          ）
                         }
                         className="w-16 rounded-xl border border-slate-200 px-2 py-2 text-center text-sm"
-                      />
-                      <span className="text-xs text-slate-400">秒</span>
+                      ＞
+                      <span className="text-xs text-slate-400">遘�</span>
                     </div>
                     <div className="mt-2 flex justify-end">
-                      <button
+                      <ボタン>
                         onClick={() =>
                           removeFormVideo(originalIndex, video.id)
                         }
                         className="rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold text-red-600"
                       >
-                        削除
+                        蜑企勁
                       </button>
                     </div>
                   </div>
                 ))}
 
-                <button
+                <ボタン>
                   onClick={() => addFormVideo(originalIndex)}
                   className="rounded-xl bg-[#1f2d43] px-3 py-2 text-xs font-semibold text-white"
                 >
-                  ＋参考動画を追加
+                  「枕カバー」「虚空」その定規。
                 </button>
 
                 {!exercise.isBase && (
                   <div className="flex items-center gap-2 border-t border-slate-200 pt-3">
-                    <select
+                    <選択>
                       value={exercise.pattern}
                       onChange={(event: ChangeEvent<HTMLSelectElement>) =>
                         updateExercisePattern(
-                          originalIndex,
-                          event.target.value as WorkoutPattern
-                        )
+                          オリジナルインデックス、
+                          event.target.value を WorkoutPattern として使用する
+                        ）
                       }
                       className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
                     >
-                      <option value="A">Aメニュー</option>
-                      <option value="B">Bメニュー</option>
+                      <option value="A">A繝｡繝九Η繝し</option>
+                      <option value="B">B繝｡繝九Η繝</option>
                     </select>
-                    <button
+                    <ボタン>
                       onClick={() => deleteExercise(exercise.key)}
                       className="rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold text-red-600"
                     >
-                      種目を削除
+                      遞ロリ逶リオン繧貞炎髯、
                     </button>
                   </div>
                 )}
@@ -2749,63 +2842,63 @@ export default function App() {
           </section>
 
           <section className={`${card} mt-3 p-4`}>
-            <div className="text-sm font-semibold">前回メモ</div>
+            <div className="text-sm font-semibold">蜑榊屓繝｡繝「</div>
             <div className="mt-2 rounded-xl bg-slate-50 px-3 py-3 text-sm leading-6 text-slate-600">
-              {exercise.lastFormMemo || "まだメモはありません"}
+              {exercise.lastFormMemo || "縺せ縺�繝｡繝「縺アッ縺ゅｊ縺サク縺帙ｓ」}
             </div>
             <textarea
               value={exercise.formMemoDraft}
               onChange={(event: ChangeEvent<HTMLTextAreaElement>) =>
                 updateFormMemoDraft(originalIndex, event.target.value)
               }
-              placeholder="今日気づいたフォームのポイント"
-              rows={2}
+              placeholder="莉頑律豌励▼縺�◆繝輔か繝ｼ繝縺リオ繝昴う繝ｳ繝"
+              行数={2}
               className="mt-3 w-full resize-none rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-400"
-            />
+            ＞
           </section>
         </main>
 
         <BottomXPBar />
       </div>
     );
-  } else {
-    screen = (
+  } それ以外 {
+    画面 = (
       <div className={`${appShell} flex items-center justify-center p-6`}>
-        <button
+        <ボタン>
           onClick={() => setViewMode("training")}
           className="rounded-2xl bg-slate-900 px-5 py-3 text-white"
         >
-          トレーニング画面へ戻る
+          医師の診察を受けてください。
         </button>
       </div>
     );
   }
 
-  return (
+  戻る （
     <div translate="no" className="notranslate">
-      {screen}
+      {画面}
 
-      {toast && (
+      {トースト && (
         <div className="pointer-events-none fixed inset-x-0 top-[max(14px,env(safe-area-inset-top))] z-[120] flex justify-center px-4">
           <div
             className={`flex max-w-sm items-center gap-3 rounded-2xl border bg-white/95 px-4 py-3 text-sm font-medium shadow-[0_16px_45px_rgba(15,23,42,0.18)] backdrop-blur-xl ${
-              toast.tone === "success"
-                ? "border-emerald-100 text-emerald-700"
+              toast.tone === "成功"
+                ？「ボーダーエメラルド100 テキストエメラルド700」
                 : toast.tone === "error"
-                ? "border-red-100 text-red-600"
+                ？「border-red-100 text-red-600」
                 : "border-sky-100 text-slate-700"
             }`}
           >
             <span
               className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs text-white ${
-                toast.tone === "success"
-                  ? "bg-emerald-500"
+                toast.tone === "成功"
+                  ？「bg-emerald-500」
                   : toast.tone === "error"
-                  ? "bg-red-500"
+                  ？「bg-red-500」
                   : "bg-sky-500"
               }`}
             >
-              {toast.tone === "success" ? "✓" : toast.tone === "error" ? "!" : "i"}
+              {toast.tone === "success" ? "笨�" : toast.tone === "error" ? "!" : "i"}
             </span>
             <span>{toast.message}</span>
           </div>
@@ -2822,17 +2915,17 @@ export default function App() {
               {confirmAction.message}
             </div>
             <div className="mt-5 grid grid-cols-2 gap-2">
-              <button
+              <ボタン>
                 onClick={() => setConfirmAction(null)}
                 className="rounded-2xl bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-600"
               >
-                キャンセル
+                「「」」「その」
               </button>
-              <button
+              <ボタン>
                 onClick={confirmAction.onConfirm}
                 className={`rounded-2xl px-4 py-3 text-sm font-semibold text-white ${
-                  confirmAction.tone === "danger"
-                    ? "bg-red-500"
+                  confirmAction.tone === "危険"
+                    ？「bg-red-500」
                     : "bg-gradient-to-r from-sky-500 to-blue-600"
                 }`}
               >
@@ -2843,7 +2936,7 @@ export default function App() {
         </div>
       )}
 
-      {celebration && (
+      {お祝い ＆＆ （
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/35 p-4 backdrop-blur-sm"
           onClick={() => setCelebration(null)}
@@ -2853,29 +2946,29 @@ export default function App() {
             onClick={(event: MouseEvent<HTMLDivElement>) => event.stopPropagation()}
           >
             <div className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-500">
-              Session Complete
+              セッション完了
             </div>
             <div className="mt-3 text-4xl font-semibold text-slate-950">
               +{pretty(celebration.xp)} XP
             </div>
             {celebration.newLevel > celebration.oldLevel ? (
               <div className="mt-3 rounded-2xl bg-amber-50 px-4 py-3 font-semibold text-amber-700">
-                LEVEL UP! Lv {celebration.newLevel}
+                レベルアップ！Lv {celebration.newLevel}
               </div>
             ) : (
               <div className="mt-3 text-sm text-slate-500">
                 {
-                  MOTIVATION_PHRASES[
+                  動機付けフレーズ[
                     (notes.length + 1) % MOTIVATION_PHRASES.length
                   ]
                 }
               </div>
             )}
-            <button
+            <ボタン>
               onClick={() => setCelebration(null)}
               className="mt-5 w-full rounded-2xl bg-slate-900 px-4 py-3 font-semibold text-white"
             >
-              閉じる
+              髢峨§繧。
             </button>
           </div>
         </div>
